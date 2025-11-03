@@ -29,27 +29,24 @@ class AvDataCleaner(DataCleaner):
 		return np.sum(np.square(row))
 
 	def filter_by_energy_ratio(self):
-		energy_ratios = []
-		energies_in = []
-		energies_out = []
 
-		for i in tqdm(range(len(self.input_df)), desc="Calculating energy ratios"):
+		eps = 1e-6  # Small constant to avoid division by zero
 
-			input_energy = self.calculate_energy(self.input_df.iloc[i])
-			output_energy = self.calculate_energy(self.output_df.iloc[i])
-			ratio = output_energy / input_energy if input_energy != 0 else np.nan
-			energy_ratios.append(ratio)
-			energies_in.append(input_energy)
-			energies_out.append(output_energy)
+		input_energy = (self.input_df.to_numpy()**2).sum(axis=1)
+		output_energy = (self.output_df.to_numpy()**2).sum(axis=1)
+		ratio = output_energy / (input_energy + eps)
 
-		mean_ratio = np.nanmean(energy_ratios)
-		std_ratio = np.nanstd(energy_ratios)
+		mean_ratio = np.nanmean(ratio)
+		std_ratio = np.nanstd(ratio)
 
-		indices_to_keep = [i for i, r in enumerate(energy_ratios) if r <= mean_ratio + std_ratio]
-		filtered_input_df = self.input_df.iloc[indices_to_keep].reset_index(drop=True)
-		filtered_output_df = self.output_df.iloc[indices_to_keep].reset_index(drop=True)
-		LOGGER.info("Retiré %d relevés avec ratio d'énergie aberrant", len(self.input_df) - len(filtered_input_df))
-		return filtered_input_df.to_numpy(), filtered_output_df.to_numpy()
+		sigma = 1.98 # Corresponds to 95% confidence interval
 
-	def get_clean_data(self) -> Any:
-		return self.filter_by_energy_ratio()
+		mask = abs(ratio - mean_ratio) <=  sigma * std_ratio
+
+		# Application du masque sur les deux DataFrames
+		self.input_df = self.input_df[mask].reset_index(drop=True)
+		self.output_df = self.output_df[mask].reset_index(drop=True)
+
+		print(f"✓ Filtered {len(mask) - np.sum(mask)} samples based on energy ratio")
+
+		return self.input_df.to_numpy(), self.output_df.to_numpy()

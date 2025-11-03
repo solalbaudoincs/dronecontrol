@@ -5,14 +5,12 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from .base_module import BaseLightningModel
+from .base_module import BaseModel
 
 
-class RNNLightningModel(BaseLightningModel):
+class RNN(BaseModel):
     def __init__(
         self,
-        input_dim: int,
-        output_dim: int,
         hidden_dim: int,
         num_layers: int,
         dropout: float = 0.0,
@@ -30,7 +28,7 @@ class RNNLightningModel(BaseLightningModel):
         
         # Recurrent layers
         self.rnn = nn.RNN(
-            input_size=input_dim,
+            input_size=1,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,

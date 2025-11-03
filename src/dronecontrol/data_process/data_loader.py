@@ -38,6 +38,7 @@ class AVDataLoader(pl.LightningDataModule):
             self.target,
             test_size=self.test_split,
             random_state=self.seed,
+            shuffle=False,
         )
 
         # Second split: train vs val
@@ -47,6 +48,7 @@ class AVDataLoader(pl.LightningDataModule):
             target_train_val,
             test_size=val_size_adjusted,
             random_state=self.seed,
+            shuffle=False,
         )
 
         # Create datasets
@@ -60,7 +62,6 @@ class AVDataLoader(pl.LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
         )
 
     def val_dataloader(self) -> DataLoader:
