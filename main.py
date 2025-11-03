@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-import pandas as pd
 import yaml
 
-# from dronecontrol import   model_training, report_generation
-# from dronecontrol.data_process import data_acquisition, data_augmentation, data_cleaning, data_loader
 from dronecontrol.data_process.preparation import prepare_scenario_data
+from dronecontrol.model_training import train_models_for_scenario
 from dronecontrol.utils import configure_logging, ensure_dir, resolve_path, set_global_seed
 
 LOGGER = logging.getLogger(__name__)
@@ -61,54 +58,18 @@ def run_pipeline(config_path: Path, selected_scenarios: List[str] | None = None)
         seed = int(scenario.get("training", {}).get("seed", general_cfg.get("seed", 42)))
         set_global_seed(seed)
 
-        data_module = prepare_scenario_data(scenario)
+        data_module, data_meta = prepare_scenario_data(scenario, project_root)
 
-        
-        
-        print("scenario", scenario  )
-        # checkpoints = model_training.train_models_for_scenario(
-        #     scenario_name,
-        #     scenario,
-        #     general_cfg,
-        #     processed_path,
-        # )
-
-        # metrics_path = control_validation.validate_control(
-        #     scenario_name,
-        #     scenario,
-        #     general_cfg,
-        #     processed_path,
-        #     checkpoints,
-        # )
-
-        # report_generation.generate_report(
-        #     scenario_name,
-        #     scenario,
-        #     general_cfg,
-        #     processed_path,
-        #     metrics_path,
-        #     checkpoints,
-        # )
-
-        # _update_metadata(processed_path, {
-        #     "seed": seed,
-        #     "normalization": norm_params,
-        #     "window_size": window_size,
-        #     "window_stride": window_stride,
-        #     "noise_std": noise_std,
-        # })
+        checkpoints = train_models_for_scenario(
+            scenario_name,
+            scenario,
+            general_cfg,
+            data_module,
+            data_meta["input_dim"],
+            data_meta["output_dim"],
+        )
 
         LOGGER.info("=== Completed scenario: %s ===", scenario_name)
-
-
-def _update_metadata(processed_path: str, updates: Dict[str, Any]) -> None:
-    meta_path = Path(processed_path).with_suffix(".meta.json")
-    if meta_path.exists():
-        meta = json.loads(meta_path.read_text())
-    else:
-        meta = {}
-    meta.update(updates)
-    meta_path.write_text(json.dumps(meta, indent=2))
 
 
 def parse_args() -> argparse.Namespace:

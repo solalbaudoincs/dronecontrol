@@ -9,10 +9,6 @@ from abc  import ABC, abstractmethod
 LOGGER = logging.getLogger(__name__)
 
 
-def calculate_energy(row : pd.Series) -> float:
-	# À adapter selon votre définition d'énergie
-	return np.sum(np.square(row))
-
 class DataCleaner(ABC):
 	"""Base class for loading and cleaning data from csvs."""
 	
@@ -28,6 +24,9 @@ class AvDataCleaner(DataCleaner):
 	def __init__(self, input_fp: str, output_fp: str):
 		self.input_df = pd.read_csv(input_fp, header=None)
 		self.output_df = pd.read_csv(output_fp, header=None)
+
+	def calculate_energy(self, row : pd.Series) -> float:
+		return np.sum(np.square(row))
 
 	def filter_by_energy_ratio(self):
 		energy_ratios = []
