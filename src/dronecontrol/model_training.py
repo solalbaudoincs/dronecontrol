@@ -78,8 +78,8 @@ def train_models_for_scenario(
 
         model_params = _collect_model_params(model_name, training_cfg)
         model = model_cls(
-            input_dim=input_dim,
-            output_dim=output_dim,
+            input_dim,
+            output_dim,
             lr=lr,
             **model_params,
         )

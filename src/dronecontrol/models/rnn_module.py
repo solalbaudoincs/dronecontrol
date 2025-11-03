@@ -11,6 +11,8 @@ from .base_module import BaseModel
 class RNN(BaseModel):
     def __init__(
         self,
+        input_dim: int,
+        output_dim: int,
         hidden_dim: int,
         num_layers: int,
         dropout: float = 0.0,
@@ -37,8 +39,9 @@ class RNN(BaseModel):
         )
         
         # Output regression layer
+        print(input_dim, "AAAAAAAAAA")
         self.batchnorm = nn.BatchNorm1d(input_dim)
-        self.regressor = nn.Linear(hidden_dim, 2000)
+        self.regressor = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         """Forward pass through the RNN model.
@@ -50,7 +53,7 @@ class RNN(BaseModel):
             Output tensor of shape (batch_size, output_dim)
         """
         # Data is 1D so we unsqueeze the last dimension
-        x = self.batchnorm(x)
+        x = self.batchnorm(x.permute(0,2,1)).permute(0,2,1)
         
         h, _ = self.rnn(x)
         return self.regressor(h)

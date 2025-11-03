@@ -5,14 +5,14 @@ from typing import Any, Dict, Tuple
 
 import pytorch_lightning as pl
 
-from .data_cleaning import AvDataCleaner
+from .data_cleaning import AVDataCleaner
 from .data_loader import AVDataLoader
 from .data_augmentation import DataAugmenter, NoOpAugmenter
 
 
 SCENARIOS: Dict[str, Dict[str, Any]] = {
     "accel_vs_voltage": {
-        "data_cleaner": AvDataCleaner,
+        "data_cleaner": AVDataCleaner,
         "data_loader": AVDataLoader,
     }
 }
@@ -42,6 +42,8 @@ def prepare_scenario_data(
     augmenter = augmenter_cls()
     augmented_input, augmented_target = augmenter.augment(raw_input, raw_target)
 
+    
+
     batch_size = int(training_cfg.get("batch_size", 32))
     val_split = float(training_cfg.get("val_split", 0.2))
     test_split = float(training_cfg.get("test_split", 0.1))
@@ -56,12 +58,9 @@ def prepare_scenario_data(
         seed=seed,
     )
 
-    input_dim = augmented_input.shape[-1] if augmented_input.ndim > 1 else 1
-    output_dim = augmented_target.shape[-1] if augmented_target.ndim > 1 else 1
-
     metadata = {
-        "input_dim": int(input_dim),
-        "output_dim": int(output_dim),
+        "input_dim": data_cfg["input_dim"],
+        "output_dim": data_cfg["output_dim"],
         "num_samples": int(augmented_input.shape[0]),
     }
 

@@ -4,6 +4,8 @@ scenarios:
       input_file: "data/accel_vs_voltage/in.csv"
       output_file: "data/accel_vs_voltage/out.csv"
       processed_file: "data/processed/accel_vs_voltage.npz"
+      input_dim: 1
+      output_dim: 1
       use_simulink: false
       simulink_model: "UAV_model.slx"
       extra_simulink_samples: 0
@@ -20,7 +22,7 @@ scenarios:
       models: ["rnn"]
       epochs: 50
       batch_size: 32
-      lr: 0.001
+      lr: 0.01
       val_split: 0.2
       test_split: 0.1
       seed: 42
