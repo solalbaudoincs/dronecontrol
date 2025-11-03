@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-from dronecontrol.data_process.data_cleaning import AvDataCleaner
+from dronecontrol.data_process.data_cleaning import AVDataCleaner
 from dronecontrol.data_process.data_loader import AVDataLoader
 from dronecontrol.models.gru_module import GRU
 from dronecontrol.models.rnn import model_nn
@@ -35,7 +35,7 @@ def main():
     
     # ==================== DATA LOADING ====================
     print("\n[1/4] Loading data...")
-    cleaner = AvDataCleaner(str(INPUT_DATA), str(OUTPUT_DATA))
+    cleaner = AVDataCleaner(str(INPUT_DATA), str(OUTPUT_DATA))
     
     # ==================== DATA CLEANING ====================
     print("[2/4] Cleaning data...")

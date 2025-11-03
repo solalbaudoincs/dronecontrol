@@ -20,7 +20,7 @@ class DataCleaner(ABC):
 	def get_clean_data(self) -> Tuple[np.ndarray, np.ndarray]:
 		pass
 
-class AvDataCleaner(DataCleaner):
+class AVDataCleaner(DataCleaner):
 	def __init__(self, input_fp: str, output_fp: str):
 		self.input_df = pd.read_csv(input_fp, header=None)
 		self.output_df = pd.read_csv(output_fp, header=None)
@@ -28,7 +28,7 @@ class AvDataCleaner(DataCleaner):
 	def calculate_energy(self, row : pd.Series) -> float:
 		return np.sum(np.square(row))
 
-	def filter_by_energy_ratio(self):
+	def get_clean_data(self):
 
 		eps = 1e-6  # Small constant to avoid division by zero
 
