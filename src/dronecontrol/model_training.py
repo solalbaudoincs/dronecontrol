@@ -1,155 +1,135 @@
-"""Model training orchestration using PyTorch Lightning."""
+"""Scenario training orchestration built on PyTorch Lightning."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import pytorch_lightning as pl
-import torch
-from pytorch_lightning import LightningDataModule
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
-from torch.utils.data import DataLoader, TensorDataset
 
-from dronecontrol.data_process.data_loader import load_npz
 from .models import MODEL_REGISTRY
 
 LOGGER = logging.getLogger(__name__)
 
-class UAVDataModule(LightningDataModule):
-    def __init__(
-        self,
-        data_path: str,
-        batch_size: int = 32,
-        num_workers: int = 0,
-    ):
-        super().__init__()
-        self.data_path = data_path
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.train_ds: Optional[TensorDataset] = None
-        self.val_ds: Optional[TensorDataset] = None
-        self.test_ds: Optional[TensorDataset] = None
-        self.input_dim: Optional[int] = None
-        self.output_dim: Optional[int] = None
-
-    def setup(self, stage: Optional[str] = None) -> None:  # type: ignore[override]
-        X_train, Y_train, X_val, Y_val, X_test, Y_test = load_npz(self.data_path)
-        self.input_dim = X_train.shape[-1]
-        self.output_dim = Y_train.shape[-1]
-        self.train_ds = TensorDataset(torch.from_numpy(X_train).float(), torch.from_numpy(Y_train).float())
-        self.val_ds = TensorDataset(torch.from_numpy(X_val).float(), torch.from_numpy(Y_val).float())
-        self.test_ds = TensorDataset(torch.from_numpy(X_test).float(), torch.from_numpy(Y_test).float())
-
-    def train_dataloader(self) -> DataLoader:  # type: ignore[override]
-        assert self.train_ds is not None
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
-
-    def val_dataloader(self) -> DataLoader:  # type: ignore[override]
-        assert self.val_ds is not None
-        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
-
-    def test_dataloader(self) -> DataLoader:  # type: ignore[override]
-        assert self.test_ds is not None
-        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
+DEFAULT_MODEL_PARAMS: Dict[str, Dict[str, Any]] = {
+    "gru": {"hidden_dim": 10, "num_layers": 1, "dropout": 0.2},
+    "rnn": {"hidden_dim": 16, "num_layers": 1, "dropout": 0.0},
+}
 
 
-def _determine_accelerator(device: str) -> str:
-    if device == "auto":
-        return "gpu" if torch.cuda.is_available() else "cpu"
-    if device in {"cpu", "gpu"}:
-        return device
-    raise ValueError(f"Unsupported device option: {device}")
+def _resolve_accelerator(device_pref: str) -> Tuple[str, str | int]:
+    device_pref = device_pref.lower()
+    if device_pref == "cpu":
+        return "cpu", 1
+    if device_pref == "gpu":
+        return "gpu", "auto"
+    return "auto", "auto"
+
+
+def _collect_model_params(model_name: str, training_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    params = DEFAULT_MODEL_PARAMS.get(model_name, {}).copy()
+    overrides = training_cfg.get("model_params", {}).get(model_name, {})
+    params.update(overrides)
+    return params
 
 
 def train_models_for_scenario(
     scenario_name: str,
     scenario_cfg: Dict[str, Any],
     general_cfg: Dict[str, Any],
-    processed_path: str,
+    data_module: pl.LightningDataModule,
+    input_dim: int,
+    output_dim: int,
 ) -> List[Tuple[str, Path]]:
     training_cfg = dict(scenario_cfg.get("training", {}) or {})
-    models = training_cfg.get("models", [])
+    models: Iterable[str] = training_cfg.get("models", ["gru"])
+    models = [model.lower() for model in models]
+
     if not models:
-        LOGGER.warning("No models specified for scenario %s", scenario_name)
+        LOGGER.warning("No models configured for scenario %s", scenario_name)
         return []
 
-    checkpoint_dir = Path(general_cfg.get("checkpoint_dir", "models")) / scenario_name
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-    log_dir = Path(general_cfg.get("log_dir", "logs")) / scenario_name
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    batch_size = int(training_cfg.get("batch_size", 32))
-    epochs = int(training_cfg.get("epochs", 50))
     lr = float(training_cfg.get("lr", 1e-3))
-    num_workers = int(general_cfg.get("num_workers", 0))
-    resume = bool(general_cfg.get("resume_from_checkpoint", False))
-    model_params: Dict[str, Any] = dict(training_cfg.get("model_params", {}) or {})
+    epochs = int(training_cfg.get("epochs", 50))
+    seed = int(training_cfg.get("seed", general_cfg.get("seed", 42)))
+    patience = int(training_cfg.get("early_stopping_patience", 10))
 
-    datamodule = UAVDataModule(processed_path, batch_size=batch_size, num_workers=num_workers)
-    datamodule.setup()
+    pl.seed_everything(seed, workers=True)
 
-    checkpoints: List[Tuple[str, Path]] = []
-    accelerator = _determine_accelerator(str(general_cfg.get("device", "auto")))
+    checkpoint_root = Path(general_cfg.get("checkpoint_dir", "models")) / scenario_name
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+
+    log_root = Path(general_cfg.get("log_dir", "logs")) / scenario_name
+    log_root.mkdir(parents=True, exist_ok=True)
+
+    accelerator, devices = _resolve_accelerator(str(general_cfg.get("device", "auto")))
+    deterministic = bool(general_cfg.get("deterministic", True))
+
+    trained_models: List[Tuple[str, Path]] = []
 
     for model_name in models:
-        model_name = model_name.lower()
         model_cls = MODEL_REGISTRY.get(model_name)
         if model_cls is None:
-            LOGGER.error("Unknown model type %s", model_name)
+            LOGGER.error("Unknown model '%s' requested for scenario %s", model_name, scenario_name)
             continue
-        assert datamodule.input_dim is not None and datamodule.output_dim is not None
-        extra_kwargs = dict(model_params.get(model_name, {}))
-        model = model_cls(datamodule.input_dim, datamodule.output_dim, lr=lr, **extra_kwargs)
 
-        callbacks = [
-            EarlyStopping(monitor="val_loss", patience=10, mode="min"),
-            ModelCheckpoint(
-                dirpath=checkpoint_dir / model_name,
-                filename="{epoch:03d}-{val_loss:.4f}",
-                save_top_k=1,
-                monitor="val_loss",
-                mode="min",
-            ),
-        ]
-        csv_logger = CSVLogger(save_dir=log_dir, name=model_name)
+        model_params = _collect_model_params(model_name, training_cfg)
+        model = model_cls(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            lr=lr,
+            **model_params,
+        )
+
+        checkpoint_dir = checkpoint_root / model_name
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_callback = ModelCheckpoint(
+            dirpath=checkpoint_dir,
+            filename="{epoch:03d}-{val_loss:.4f}",
+            monitor="val_loss",
+            mode="min",
+            save_top_k=1,
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_loss",
+            patience=patience,
+            mode="min",
+            verbose=False,
+        )
+        csv_logger = CSVLogger(save_dir=log_root, name=model_name)
 
         trainer = pl.Trainer(
             max_epochs=epochs,
             accelerator=accelerator,
-            devices=1,
-            callbacks=callbacks,
+            devices=devices,
+            callbacks=[checkpoint_callback, early_stopping],
             logger=csv_logger,
-            deterministic=bool(general_cfg.get("deterministic", True)),
-            enable_checkpointing=True,
-            log_every_n_steps=10,
+            deterministic=deterministic,
+            log_every_n_steps =10,
+            enable_progress_bar=True,
         )
 
-        ckpt_path = None
-        if resume:
-            last_ckpt = _find_last_checkpoint(checkpoint_dir / model_name)
-            if last_ckpt:
-                ckpt_path = str(last_ckpt)
-                LOGGER.info("Resuming %s from %s", model_name, ckpt_path)
+        LOGGER.info(
+            "Training %s model for scenario %s (epochs=%d, lr=%.3g)",
+            model_name,
+            scenario_name,
+            epochs,
+            lr,
+        )
 
-        trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
-        trainer.validate(model, datamodule=datamodule)
+        trainer.fit(model, datamodule=data_module)
+        trainer.validate(model, datamodule=data_module)
 
-        best_ckpt = callbacks[1].best_model_path  # ModelCheckpoint
+        best_ckpt = checkpoint_callback.best_model_path
         if best_ckpt:
-            checkpoints.append((model_name, Path(best_ckpt)))
-            LOGGER.info("Best checkpoint for %s stored at %s", model_name, best_ckpt)
+            ckpt_path = Path(best_ckpt)
+            trained_models.append((model_name, ckpt_path))
+            LOGGER.info("Best %s checkpoint stored at %s", model_name, ckpt_path)
         else:
-            LOGGER.warning("Trainer did not produce a checkpoint for %s", model_name)
+            LOGGER.warning("No checkpoint produced for model %s in scenario %s", model_name, scenario_name)
 
-    return checkpoints
-
-
-def _find_last_checkpoint(directory: Path) -> Optional[Path]:
-    if not directory.exists():
-        return None
-    checkpoints = sorted(directory.glob("*.ckpt"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return checkpoints[0] if checkpoints else None
+    return trained_models

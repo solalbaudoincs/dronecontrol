@@ -18,7 +18,9 @@ class LinearLightningModel(BaseLightningModel):
             ):
         super().__init__(input_dim, output_dim, lr)
         self.model = nn.Sequential(
-            nn.Linear(input_dim, output_dim)
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, output_dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]

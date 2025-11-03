@@ -16,9 +16,8 @@ scenarios:
       noise_std: 0.01
       window_size: 50
       window_stride: 10
-      simulink_noise_samples: 0
     training:
-      models: ["linear", "gru"]
+      models: ["rnn"]
       epochs: 50
       batch_size: 32
       lr: 0.001
