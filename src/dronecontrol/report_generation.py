@@ -125,4 +125,3 @@ def _render_pdf(pdf_path: Path, scenario: str, metrics: Dict[str, Any], figures:
         y -= img_height * scale + 30
 
     c.save()
-```}
