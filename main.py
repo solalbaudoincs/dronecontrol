@@ -9,8 +9,9 @@ from typing import Any, Dict, List
 import pandas as pd
 import yaml
 
-from src import control_validation, data_acquisition, data_augmentation, data_cleaning, data_loader, model_training, report_generation
-from src.utils import configure_logging, ensure_dir, resolve_path, set_global_seed
+from dronecontrol import control_validation,  model_training, report_generation
+from dronecontrol.data_process import data_acquisition, data_augmentation, data_cleaning, data_loader
+from dronecontrol.utils import configure_logging, ensure_dir, resolve_path, set_global_seed
 
 LOGGER = logging.getLogger(__name__)
 
