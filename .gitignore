@@ -1,4 +1,7 @@
 data/
+logs/
+models/
+predictions_plots/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

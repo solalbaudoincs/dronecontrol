@@ -20,7 +20,7 @@ class AVDataset(Dataset):
     
     def __getitem__(self, idx: int):
         
-        input_tensor = torch.tensor(self.input[idx], dtype=torch.float32)
-        target_tensor = torch.tensor(self.target[idx], dtype=torch.float32)
+        input_tensor = torch.tensor(self.input[idx], dtype=torch.float32).unsqueeze(-1)
+        target_tensor = torch.tensor(self.target[idx], dtype=torch.float32).unsqueeze(-1)
 
         return input_tensor, target_tensor

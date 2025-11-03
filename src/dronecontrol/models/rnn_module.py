@@ -5,14 +5,12 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from .base_module import BaseLightningModel
+from .base_module import BaseModel
 
 
-class RNNLightningModel(BaseLightningModel):
+class RNN(BaseModel):
     def __init__(
         self,
-        input_dim: int,
-        output_dim: int,
         hidden_dim: int,
         num_layers: int,
         dropout: float = 0.0,
@@ -20,7 +18,7 @@ class RNNLightningModel(BaseLightningModel):
         **_: object,
     ):
 
-        super().__init__(input_dim, output_dim, lr)
+        super().__init__(lr)
         
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
@@ -28,17 +26,18 @@ class RNNLightningModel(BaseLightningModel):
             "dropout": dropout,
         })
         self.rnn = nn.RNN(
-            input_size=input_dim,
+            input_size=1,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
         )
-        self.regressor = nn.Linear(hidden_dim, output_dim)
+        self.regressor = nn.Sequential(
+            nn.Linear(hidden_dim // 2 if hidden_dim > 1 else 1, 1),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         if x.ndim == 2:
             x = x.unsqueeze(1)
-        _, hidden = self.rnn(x)
-        last_hidden = hidden[-1]
-        return self.regressor(last_hidden)
+        h,_ = self.rnn(x)
+        return self.regressor(h)
