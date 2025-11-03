@@ -9,8 +9,9 @@ from typing import Any, Dict, List
 import pandas as pd
 import yaml
 
-from dronecontrol import control_validation,  model_training, report_generation
-from dronecontrol.data_process import data_acquisition, data_augmentation, data_cleaning, data_loader
+# from dronecontrol import   model_training, report_generation
+# from dronecontrol.data_process import data_acquisition, data_augmentation, data_cleaning, data_loader
+from dronecontrol.data_process.preparation import prepare_scenario_data
 from dronecontrol.utils import configure_logging, ensure_dir, resolve_path, set_global_seed
 
 LOGGER = logging.getLogger(__name__)
@@ -60,94 +61,42 @@ def run_pipeline(config_path: Path, selected_scenarios: List[str] | None = None)
         seed = int(scenario.get("training", {}).get("seed", general_cfg.get("seed", 42)))
         set_global_seed(seed)
 
-        processed_dir = Path(general_cfg.get("default_processed_dir", "data/processed"))
-        data_bundle = data_acquisition.assemble_dataset(
-            scenario_name,
-            scenario,
-            project_root,
-            processed_dir if processed_dir.is_absolute() else project_root / processed_dir,
-        )
+        data_module = prepare_scenario_data(scenario)
 
-        inputs_df = data_bundle["inputs"].copy()
-        outputs_df = data_bundle["outputs"].copy()
-        numeric_inputs = inputs_df.select_dtypes(include="number").columns
-        numeric_outputs = outputs_df.select_dtypes(include="number").columns
+        
+        
+        print("scenario", scenario  )
+        # checkpoints = model_training.train_models_for_scenario(
+        #     scenario_name,
+        #     scenario,
+        #     general_cfg,
+        #     processed_path,
+        # )
 
-        pre_cfg = dict(scenario.get("preprocessing", {}))
-        combined_df = pd.concat([inputs_df, outputs_df], axis=1)
-        combined_df = data_cleaning.remove_outliers(combined_df, method=pre_cfg.get("outlier_method", "iqr"))
-        combined_df = data_cleaning.interpolate_missing(combined_df, method=pre_cfg.get("fill_method", "linear"))
-        combined_df, norm_params = data_cleaning.normalize(
-            combined_df,
-            scope=pre_cfg.get("normalization_scope", "per_feature"),
-        )
+        # metrics_path = control_validation.validate_control(
+        #     scenario_name,
+        #     scenario,
+        #     general_cfg,
+        #     processed_path,
+        #     checkpoints,
+        # )
 
-        inputs_clean = combined_df[numeric_inputs]
-        outputs_clean = combined_df[numeric_outputs]
+        # report_generation.generate_report(
+        #     scenario_name,
+        #     scenario,
+        #     general_cfg,
+        #     processed_path,
+        #     metrics_path,
+        #     checkpoints,
+        # )
 
-        X_array, Y_array = data_loader.dataframe_to_arrays(inputs_clean, outputs_clean)
-        X_array, Y_array = data_augmentation.append_simulink_samples(
-            X_array,
-            Y_array,
-            data_bundle.get("simulink_data"),
-        )
-
-        aug_cfg = dict(scenario.get("augmentation", {}))
-        noise_std = float(aug_cfg.get("noise_std", 0.0))
-        X_aug, Y_aug = data_augmentation.add_gaussian_noise(X_array, Y_array, noise_std=noise_std, seed=seed)
-
-        window_size = int(aug_cfg.get("window_size", 1))
-        window_stride = int(aug_cfg.get("window_stride", 1))
-        windowed = data_augmentation.slice_windows(
-            X_aug,
-            Y_aug,
-            window_size=window_size,
-            stride=window_stride,
-        )
-
-        train_cfg = dict(scenario.get("training", {}))
-        split_arrays = data_loader.train_val_test_split(
-            windowed["X"],
-            windowed["Y"],
-            val_ratio=float(train_cfg.get("val_split", 0.2)),
-            test_ratio=float(train_cfg.get("test_split", 0.1)),
-            seed=seed,
-        )
-
-        processed_path = data_bundle["processed_path"]
-        data_loader.save_npz(processed_path, split_arrays)
-
-        checkpoints = model_training.train_models_for_scenario(
-            scenario_name,
-            scenario,
-            general_cfg,
-            processed_path,
-        )
-
-        metrics_path = control_validation.validate_control(
-            scenario_name,
-            scenario,
-            general_cfg,
-            processed_path,
-            checkpoints,
-        )
-
-        report_generation.generate_report(
-            scenario_name,
-            scenario,
-            general_cfg,
-            processed_path,
-            metrics_path,
-            checkpoints,
-        )
-
-        _update_metadata(processed_path, {
-            "seed": seed,
-            "normalization": norm_params,
-            "window_size": window_size,
-            "window_stride": window_stride,
-            "noise_std": noise_std,
-        })
+        # _update_metadata(processed_path, {
+        #     "seed": seed,
+        #     "normalization": norm_params,
+        #     "window_size": window_size,
+        #     "window_stride": window_stride,
+        #     "noise_std": noise_std,
+        # })
 
         LOGGER.info("=== Completed scenario: %s ===", scenario_name)
 
