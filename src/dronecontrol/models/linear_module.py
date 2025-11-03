@@ -5,18 +5,18 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from .base_module import BaseLightningModel
+from .base_module import BaseModel
 
 
-class LinearLightningModel(BaseLightningModel):
+class LinearModel(BaseModel):
     def __init__(
             self, 
-            input_dim: int, 
-            output_dim: int, 
+            input_dim: int,
+            output_dim: int,
             lr: float = 1e-3, 
             **_: object
             ):
-        super().__init__(input_dim, output_dim, lr)
+        super().__init__(lr)
         self.model = nn.Sequential(
             nn.Linear(input_dim, 32),
             nn.ReLU(),

@@ -1,14 +1,14 @@
 """Complete training pipeline with Lightning."""
 
-import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-from src.dronecontrol.data_process.data_cleaning import AvDataCleaner
-from src.dronecontrol.data_process.data_loader import AVDataLoader
-from src.dronecontrol.models.gru_module import GRULightningModel
-from src.dronecontrol.globals import INPUT_DATA, OUTPUT_DATA, BASEDIR
+from dronecontrol.data_process.data_cleaning import AvDataCleaner
+from dronecontrol.data_process.data_loader import AVDataLoader
+from dronecontrol.models.gru_module import GRU
+from dronecontrol.models.rnn import model_nn
+from dronecontrol.globals import INPUT_DATA, OUTPUT_DATA, BASEDIR
 
 
 def main():
@@ -21,9 +21,9 @@ def main():
     lr = 1e-2
     val_split = 0.2
     test_split = 0.1
-    hidden_dim = 32
+    hidden_dim = 16
     num_layers = 1
-    dropout = 0.2
+    dropout = 0.0
     log_dir = "logs"
     checkpoint_dir = "models"
     # Set seed for reproducibility
@@ -55,24 +55,20 @@ def main():
     )
     
     # Get data dimensions
-    input_dim = input_data.shape[1] if input_data.ndim > 1 else 1
-    output_dim = output_data.shape[1] if output_data.ndim > 1 else 1
     
     print(f"  ✓ DataModule configured")
     print(f"    Batch size: {batch_size}")
-    print(f"    Input dimension: {input_dim}")
-    print(f"    Output dimension: {output_dim}")
-    
     # ==================== MODEL ====================
     print("[4/4] Initializing GRU model...")
     
-    model = GRULightningModel(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=hidden_dim,
+    model = model_nn(
+        hidden_size=hidden_dim,
         num_layers=num_layers,
         dropout=dropout,
-        lr=lr
+        lr=lr,
+        rnn_type='GRU',
+        bidirectional=False,
+        weight_decay=1e-5
     )
     
     print(f"  ✓ GRU model initialized")
@@ -89,7 +85,7 @@ def main():
         filename="gru-{epoch:02d}-{val_loss:.4f}",
         monitor="val_loss",
         mode="min",
-        save_top_k=3
+        save_top_k=1
     )
     
     early_stopping = EarlyStopping(
@@ -116,6 +112,7 @@ def main():
     
     # Train
     trainer.fit(model, data_module)
+    trainer.test(model, data_module)
     
     print("\n" + "=" * 60)
     print("TRAINING COMPLETED")
