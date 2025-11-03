@@ -19,7 +19,8 @@ class AVDataset(Dataset):
         return len(self.input)
     
     def __getitem__(self, idx: int):
-        return {
-            "input": torch.tensor(self.input[idx]),
-            "target": torch.tensor(self.target[idx]),
-        }
+        
+        input_tensor = torch.tensor(self.input[idx], dtype=torch.float32)
+        target_tensor = torch.tensor(self.target[idx], dtype=torch.float32)
+
+        return input_tensor, target_tensor
