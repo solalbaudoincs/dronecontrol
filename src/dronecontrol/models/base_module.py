@@ -8,6 +8,7 @@ from torch import nn
 
 
 class BaseLightningModel(pl.LightningModule):
+    
     def __init__(self, input_dim: int, output_dim: int, lr: float = 1e-3):
         super().__init__()
         self.save_hyperparameters()
