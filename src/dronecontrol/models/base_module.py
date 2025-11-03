@@ -9,11 +9,13 @@ from pathlib import Path
 
 class BaseModel(pl.LightningModule):
 
-    def __init__(self, input_dim: int, output_dim: int,lr: float = 1e-3):
+    def __init__(self, input_dim: int, output_dim: int, lr: float):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.save_hyperparameters()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.lr = lr
         self.mse_loss = nn.MSELoss()
 

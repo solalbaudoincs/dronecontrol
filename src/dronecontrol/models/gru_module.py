@@ -11,13 +11,15 @@ from .base_module import BaseModel
 class GRU(BaseModel):
     def __init__(
         self,
+        input_dim: int,
+        output_dim: int,
         hidden_dim: int,
         num_layers: int,
-        dropout: float = 0.0,
-        lr: float = 1e-3,
+        dropout: float,
+        lr: float,
         **_: object,
     ):
-        super().__init__(lr)
+        super().__init__(input_dim, output_dim, lr)
 
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
@@ -25,8 +27,10 @@ class GRU(BaseModel):
             "dropout": dropout,
         }) 
 
+        self.batchnorm = nn.BatchNorm1d(input_dim)
+
         self.gru = nn.GRU(
-            input_size=1,
+            input_size=input_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             bidirectional=False,
@@ -39,7 +43,7 @@ class GRU(BaseModel):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
-        if x.ndim == 2:
-            x = x.unsqueeze(1)
+        
+        x = self.batchnorm(x)
         h, _ = self.gru(x)
         return self.regressor(h)
