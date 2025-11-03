@@ -1,68 +1,29 @@
-"""Data cleaning routines for UAV datasets."""
+from tqdm import tqdm
 
-from __future__ import annotations
+def calculate_energy(row):
+	# À adapter selon votre définition d'énergie
+	return np.sum(np.square(row))
 
-import logging
-from typing import Dict, Tuple
+class AvDataCleaner:
+	def __init__(self, input_df: str, output_df: str):
+		self.input_df = pd.read_csv(input_df, header=None)
+		self.output_df = pd.read_csv(output_df, header=None)
 
-import numpy as np
-import pandas as pd
-
-LOGGER = logging.getLogger(__name__)
-
-
-def remove_outliers(df: pd.DataFrame, method: str = "iqr", threshold: float = 1.5) -> pd.DataFrame:
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) == 0:
-        return df
-    mask = pd.Series(True, index=df.index)
-    if method.lower() == "iqr":
-        q1 = df[numeric_cols].quantile(0.25)
-        q3 = df[numeric_cols].quantile(0.75)
-        iqr = q3 - q1
-        lower = q1 - threshold * iqr
-        upper = q3 + threshold * iqr
-        mask &= ~((df[numeric_cols] < lower) | (df[numeric_cols] > upper)).any(axis=1)
-    elif method.lower() == "zscore":
-        z = (df[numeric_cols] - df[numeric_cols].mean()) / df[numeric_cols].std(ddof=0)
-        mask &= ~(np.abs(z) > threshold).any(axis=1)
-    else:
-        raise ValueError(f"Unsupported outlier removal method: {method}")
-    filtered = df[mask].reset_index(drop=True)
-    LOGGER.info("Removed %d outlier rows using %s", len(df) - len(filtered), method)
-    return filtered
-
-
-def interpolate_missing(df: pd.DataFrame, method: str = "linear") -> pd.DataFrame:
-    interpolated = df.interpolate(method=method, limit_direction="both")
-    interpolated = interpolated.ffill().bfill()
-    missing = interpolated.isna().sum().sum()
-    if missing:
-        LOGGER.warning("%d missing values remain after interpolation", missing)
-    return interpolated
-
-
-def normalize(
-    df: pd.DataFrame,
-    scope: str = "per_feature",
-) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if scope == "global":
-        mean = float(df[numeric_cols].values.mean())
-        std = float(df[numeric_cols].values.std(ddof=0)) or 1.0
-        df_norm = df.copy()
-        df_norm[numeric_cols] = (df_norm[numeric_cols] - mean) / std
-        params = {"global": {"mean": mean, "std": std}}
-    elif scope == "per_feature":
-        stats = df[numeric_cols].agg(["mean", "std"])
-        stats.loc["std", :] = stats.loc["std"].replace(to_replace=0, value=1.0)
-        df_norm = df.copy()
-        df_norm[numeric_cols] = (df_norm[numeric_cols] - stats.loc["mean"]) / stats.loc["std"]
-        params = {
-            col: {"mean": float(stats.loc["mean", col]), "std": float(stats.loc["std", col])}
-            for col in numeric_cols
-        }
-    else:
-        raise ValueError(f"Unknown normalization scope: {scope}")
-    LOGGER.info("Applied %s normalization", scope)
-    return df_norm, params
+	def filter_by_energy_ratio(self):
+		energy_ratios = []
+		energies_in = []
+		energies_out = []
+		for i in tqdm(range(len(self.input_df)), desc="Calculating energy ratios"):
+			input_energy = calculate_energy(self.input_df.iloc[i])
+			output_energy = calculate_energy(self.output_df.iloc[i])
+			ratio = output_energy / input_energy if input_energy != 0 else np.nan
+			energy_ratios.append(ratio)
+			energies_in.append(input_energy)
+			energies_out.append(output_energy)
+		mean_ratio = np.nanmean(energy_ratios)
+		std_ratio = np.nanstd(energy_ratios)
+		indices_to_keep = [i for i, r in enumerate(energy_ratios) if r <= mean_ratio + std_ratio]
+	filtered_input_df = self.input_df.iloc[indices_to_keep].reset_index(drop=True)
+	filtered_output_df = self.output_df.iloc[indices_to_keep].reset_index(drop=True)
+	LOGGER.info("Retiré %d relevés avec ratio d'énergie aberrant", len(self.input_df) - len(filtered_input_df))
+	return filtered_input_df.to_numpy(), filtered_output_df.to_numpy()
