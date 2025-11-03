@@ -13,14 +13,12 @@ class LinearModel(BaseModel):
             self, 
             input_dim: int,
             output_dim: int,
-            lr: float = 1e-3, 
+            lr: float, 
             **_: object
             ):
-        super().__init__(lr)
+        super().__init__(input_dim, output_dim, lr)
         self.model = nn.Sequential(
-            nn.Linear(input_dim, 32),
-            nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(input_dim, output_dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
