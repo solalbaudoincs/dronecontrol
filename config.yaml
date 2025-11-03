@@ -1,0 +1,50 @@
+scenarios:
+  - name: "accel_vs_voltage"
+    data:
+      input_file: "data/accel_vs_voltage/in.csv"
+      output_file: "data/accel_vs_voltage/out.csv"
+      processed_file: "data/processed/accel_vs_voltage.npz"
+      use_simulink: false
+      simulink_model: "UAV_model.slx"
+      extra_simulink_samples: 0
+    preprocessing:
+      outlier_method: "iqr"  # options: iqr, zscore
+      normalize: true
+      normalization_scope: "per_feature"  # options: per_feature, global
+      fill_method: "linear"  # options: linear, cubic, nearest
+    augmentation:
+      noise_std: 0.01
+      window_size: 50
+      window_stride: 10
+      simulink_noise_samples: 0
+    training:
+      models: ["linear", "gru"]
+      epochs: 50
+      batch_size: 32
+      lr: 0.001
+      val_split: 0.2
+      test_split: 0.1
+      seed: 42
+    control:
+      methods: ["mpc"]
+      horizon: 10
+      rl_algorithm: "ppo"  # options: ppo, ddpg
+      mpc_weight_tracking: 1.0
+      mpc_weight_smoothness: 0.1
+      mpc_weight_effort: 0.01
+    reporting:
+      generate_pdf: true
+      include_plots: true
+      metrics_file: "results/accel_vs_voltage/metrics.json"
+
+general:
+  Ts: 0.05
+  device: "auto"
+  num_workers: 0
+  default_processed_dir: "data/processed"
+  checkpoint_dir: "models"
+  results_dir: "results"
+  reports_dir: "reports"
+  log_dir: "logs"
+  resume_from_checkpoint: false
+  deterministic: true
