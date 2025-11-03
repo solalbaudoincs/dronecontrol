@@ -13,10 +13,10 @@ class RNNLightningModel(BaseLightningModel):
         self,
         input_dim: int,
         output_dim: int,
-        lr: float = 1e-3,
-        hidden_dim: int = 64,
-        num_layers: int = 1,
+        hidden_dim: int,
+        num_layers: int,
         dropout: float = 0.0,
+        lr: float = 1e-3,
         **_: object,
     ):
 

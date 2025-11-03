@@ -11,6 +11,9 @@ class BaseLightningModel(pl.LightningModule):
     def __init__(self, input_dim: int, output_dim: int, lr: float = 1e-3):
         super().__init__()
         self.save_hyperparameters()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.lr = lr
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - abstract
         raise NotImplementedError
@@ -30,4 +33,4 @@ class BaseLightningModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):  # type: ignore[override]
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
