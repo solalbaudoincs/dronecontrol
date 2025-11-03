@@ -22,7 +22,7 @@ def prepare_scenario_data(scenario_conf: dict[str, any]) -> pl.LightningDataModu
     loader_cls = scenario_cfg["data_loader"]
     augmenter_cls = scenario_cfg.get("data_augmenter", NoOpAugmenter)
 
-    input, target = cleaner_cls(scenario_conf["data"]["input_file"], scenario_conf["data"]["output_file"])
+    input, target = cleaner_cls(scenario_conf["data"]["input_file"], scenario_conf["data"]["output_file"]).get_clean_data()
 
     augmented_input, augmented_target = augmenter_cls().augment(input, target)
 
