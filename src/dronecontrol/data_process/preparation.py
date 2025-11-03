@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 
 
 SCENARIOS = {
-    "AV" : {
+    "accel_vs_voltage" : {
         "data_cleaner": AvDataCleaner,
         "data_loader": AVDataLoader,
     }
@@ -33,9 +33,5 @@ def prepare_scenario_data(scenario_conf: dict[str, any]) -> pl.LightningDataModu
     )
     
     return data_module
-
-
-
-
 
     
