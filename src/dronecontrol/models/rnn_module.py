@@ -19,7 +19,9 @@ class RNNLightningModel(BaseLightningModel):
         dropout: float = 0.0,
         **_: object,
     ):
+
         super().__init__(input_dim, output_dim, lr)
+        
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
             "num_layers": num_layers,

@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, Tuple
 import numpy as np
 import torch
 
-from .data_loader import load_npz
+from dronecontrol.data_process.data_loader import load_npz
 from .models import MODEL_REGISTRY
 
 LOGGER = logging.getLogger(__name__)
