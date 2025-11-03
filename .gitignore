@@ -222,6 +222,6 @@ __marimo__/
 
 
 **.ckpt
-models
+wmodels
 logs
 reports
