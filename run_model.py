@@ -39,7 +39,7 @@ def main():
     
     # ==================== DATA CLEANING ====================
     print("[2/4] Cleaning data...")
-    input_data, output_data = cleaner.filter_by_energy_ratio()
+    input_data, output_data = cleaner.get_clean_data()
     print(f"  ✓ Data cleaned: {input_data.shape[0]} samples remaining")
     print(f"    Input shape: {input_data.shape}")
     print(f"    Output shape: {output_data.shape}")
