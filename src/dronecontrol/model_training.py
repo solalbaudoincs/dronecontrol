@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
 from torch.utils.data import DataLoader, TensorDataset
 
-from .data_loader import load_npz
+from dronecontrol.data_process.data_loader import load_npz
 from .models import MODEL_REGISTRY
 
 LOGGER = logging.getLogger(__name__)

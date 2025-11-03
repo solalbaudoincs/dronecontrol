@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .utils import ensure_dir, resolve_path
+from dronecontrol.utils import ensure_dir, resolve_path
 
 LOGGER = logging.getLogger(__name__)
 

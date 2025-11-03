@@ -14,7 +14,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-from .data_loader import load_npz
+from dronecontrol.data_process.data_loader import load_npz
 from .models import MODEL_REGISTRY
 
 LOGGER = logging.getLogger(__name__)
