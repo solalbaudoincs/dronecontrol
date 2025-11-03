@@ -9,7 +9,13 @@ from .base_module import BaseLightningModel
 
 
 class LinearLightningModel(BaseLightningModel):
-    def __init__(self, input_dim: int, output_dim: int, lr: float = 1e-3, **_: object):
+    def __init__(
+            self, 
+            input_dim: int, 
+            output_dim: int, 
+            lr: float = 1e-3, 
+            **_: object
+            ):
         super().__init__(input_dim, output_dim, lr)
         self.model = nn.Sequential(
             nn.Linear(input_dim, output_dim)
