@@ -15,7 +15,6 @@ class DroneSimulator:
         # filtered input state (initialized lazily on first step)
         self.filtered_input = None
 
-
     @property
     def pos(self):
         return self.state[0:3]
@@ -34,9 +33,8 @@ class DroneSimulator:
     
     def _compute_deriv(self, state: np.ndarray, control_input: np.ndarray) -> np.ndarray:
         """Helper to compute dxdt using the MATLAB model."""
-        voltage = 10*np.tanh(control_input)
         x_matlab = colvec(state.tolist())
-        u_matlab = colvec(voltage.tolist())
+        u_matlab = colvec(control_input.tolist())
         dxdt_matlab = self.eng.quadcopter_model(x_matlab, u_matlab)  # Assumes 12x1 output
         return np.array(dxdt_matlab).flatten()
     
@@ -91,7 +89,8 @@ if __name__ == "__main__":
     dl, _ = prepare_scenario_data(cfg["scenarios"][0], cfg_path.parent)
     dl.setup("fit")
     data : AVDataset = dl.train_dataset
-    for i in [0]:
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    for idx, i in enumerate([0,1,2]):
         sim = DroneSimulator(initial_state=np.zeros(12))
         u : np.ndarray = data[i][0].squeeze().numpy()
         a = data[i][1].squeeze().numpy()
@@ -102,9 +101,9 @@ if __name__ == "__main__":
             a_simu.append(dxdt[5])  # extract linear acceleration
 
 
-        plt.plot(np.array(a_simu))
-        plt.plot(a)
-        plt.title('dxdt')
-        plt.legend(["simulated","reference"])
-        plt.show()
+        axes[idx].plot(np.array(a_simu))
+        axes[idx].plot(a)
+        axes[idx].set_title(f'dxdt for sample {i}')
+        axes[idx].legend(["simulated","reference"])
+    plt.show()
     
