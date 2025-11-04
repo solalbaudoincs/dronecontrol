@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from typing import Optional
 
 from .base_module import BaseModel
 
 
-class LinearModel(BaseModel):
+class LinearModel(nn.Module):
     def __init__(
             self, 
             input_dim: int,
             output_dim: int,
-            lr: float = 1e-3, 
             **_
             ):
-        super().__init__(input_dim, output_dim, lr, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
+        
+        super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_dim, output_dim)
         )

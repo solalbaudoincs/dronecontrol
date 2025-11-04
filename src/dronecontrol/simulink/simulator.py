@@ -23,11 +23,16 @@ class DroneSimulator:
     @property
     def vel(self):
         return self.state[3:6]
-    
+
     @property
     def angles(self):
         return self.state[6:9]
-    
+
+    def accel(self, control_input: list[float]) -> list[float]:
+        """ Control input is a list of 4 floats: [thrust, tau_phi, tau_theta, tau_psi] wich are the tensions/torques applied by the motors."""
+        _, dxdt = self.step(control_input)
+        return dxdt[3:6]
+
     @property
     def ang_vel(self):
         return self.state[9:12]
