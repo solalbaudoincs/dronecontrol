@@ -29,6 +29,8 @@ class GRU(BaseModel):
             "dropout": dropout,
         }) 
 
+        self.batchnorm = nn.BatchNorm1d(input_dim)
+
         self.gru = nn.GRU(
             input_size=input_dim,
             hidden_size=hidden_dim,

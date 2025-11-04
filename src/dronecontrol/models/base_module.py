@@ -16,6 +16,8 @@ class BaseModel(pl.LightningModule):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.save_hyperparameters()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.lr = lr
         self.scheduler_type = scheduler_type
         self.scheduler_kwargs = scheduler_kwargs or {}

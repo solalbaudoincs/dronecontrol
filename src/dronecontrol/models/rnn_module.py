@@ -15,13 +15,12 @@ class RNN(BaseModel):
         output_dim: int,
         hidden_dim: int,
         num_layers: int,
-        dropout: float = 0.0,
-        lr: float = 1e-3,
+        dropout: float,
+        lr: float,
         **_: object,
     ):
-        super().__init__(input_dim, output_dim, lr)
-        print(input_dim)
-        # Save model hyperparameters for logging and checkpointing
+
+        super().__init__(input_dim, output_dim, lr, scheduler_type, scheduler_kwargs)
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
             "num_layers": num_layers,
@@ -30,30 +29,18 @@ class RNN(BaseModel):
         
         # Recurrent layers
         self.rnn = nn.RNN(
-            input_size=1,
+            input_size=input_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
             nonlinearity="tanh",
             dropout=dropout if num_layers > 1 else 0.0,
         )
-        
-        # Output regression layer
-        print(input_dim, "AAAAAAAAAA")
-        self.batchnorm = nn.BatchNorm1d(input_dim)
-        self.regressor = nn.Linear(hidden_dim, output_dim)
+        self.regressor = nn.Sequential(
+            nn.Linear(hidden_dim, output_dim),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
-        """Forward pass through the RNN model.
         
-        Args:
-            x: Input tensor of shape (batch_size, T, 1)
-
-        Returns:
-            Output tensor of shape (batch_size, output_dim)
-        """
-        # Data is 1D so we unsqueeze the last dimension
-        x = self.batchnorm(x.permute(0,2,1)).permute(0,2,1)
-        
-        h, _ = self.rnn(x)
+        h,_ = self.rnn(x)
         return self.regressor(h)
