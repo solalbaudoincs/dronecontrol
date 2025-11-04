@@ -14,9 +14,9 @@ class LinearModel(BaseModel):
             input_dim: int,
             output_dim: int,
             lr: float = 1e-3, 
-            **_: object
+            **_
             ):
-        super().__init__(lr)
+        super().__init__(input_dim, output_dim, lr, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
         self.model = nn.Sequential(
             nn.Linear(input_dim, 32),
             nn.ReLU(),

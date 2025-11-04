@@ -1,5 +1,7 @@
 """Base Lightning module definitions."""
 
+from typing import Optional
+
 import pytorch_lightning as pl
 import torch
 from torch import nn
@@ -9,12 +11,14 @@ from pathlib import Path
 
 class BaseModel(pl.LightningModule):
 
-    def __init__(self, input_dim: int, output_dim: int,lr: float = 1e-3):
+    def __init__(self, input_dim: int, output_dim: int, lr: float, scheduler_type: Optional[str], scheduler_kwargs: Optional[dict]):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.save_hyperparameters()
         self.lr = lr
+        self.scheduler_type = scheduler_type
+        self.scheduler_kwargs = scheduler_kwargs or {}
         self.mse_loss = nn.MSELoss()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - abstract
@@ -41,16 +45,29 @@ class BaseModel(pl.LightningModule):
         self.log("test_loss", loss)
         
         # Generate and save plots
-        fig = self.plot_predictions(y[0, ...], y_hat[0, ...])
+        fig = self.plot_predictions(y[0, ...].squeeze(-1), y_hat[0, ...].squeeze(-1))
         log_dir = Path("predictions_plots")
         log_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(log_dir / f"test_predictions_batch_{batch_idx}.png", dpi=100)
+        fig.savefig(log_dir / f"test_predictions_batch_{batch_idx}.png", dpi=100) # type: ignore[attr-defined]
         plt.close(fig)
         
         return loss
 
     def configure_optimizers(self):  # type: ignore[override]
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        if self.scheduler_type:
+            if self.scheduler_type == "ReduceLROnPlateau":
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, **self.scheduler_kwargs)
+                return {
+                    "optimizer": optimizer,
+                    "lr_scheduler": {
+                        "scheduler": scheduler,
+                        "monitor": "val_loss",
+                        "interval": "epoch",
+                        "frequency": 1,
+                    },
+                }
+        return optimizer
     
     def plot_predictions(self, y_true: torch.Tensor, y_pred: torch.Tensor):
         """Generate plots comparing predictions with ground truth."""
