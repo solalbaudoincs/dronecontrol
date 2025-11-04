@@ -11,10 +11,11 @@ from pathlib import Path
 
 class BaseModel(pl.LightningModule):
 
-    def __init__(self, input_dim: int, output_dim: int, lr: float, scheduler_type: Optional[str], scheduler_kwargs: Optional[dict]):
+    def __init__(self, input_dim: int, output_dim: int, lr: float, hidden_dim: int, scheduler_type: Optional[str], scheduler_kwargs: Optional[dict]):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
         self.save_hyperparameters()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -31,6 +32,8 @@ class BaseModel(pl.LightningModule):
         y_hat = self(x)
         print(f"y_hat shape: {y_hat.shape}, y shape: {y.shape}")
         loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :])# we dont take into account the first timestep, as we cant predict without prior info
+        y_hat, _ = self(x)
+        loss = self.mse_loss(y_hat, y)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
@@ -38,6 +41,8 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :]) # we dont take into account the first timestep
+        y_hat, _ = self(x)
+        loss = self.mse_loss(y_hat, y)
         self.log("val_loss", loss, prog_bar=True)
         return loss
     
@@ -45,6 +50,8 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :]) # we dont take into account the first timestep
+        y_hat, _ = self(x)
+        loss = self.mse_loss(y_hat, y)
         self.log("test_loss", loss)
         
         # Generate and save plots

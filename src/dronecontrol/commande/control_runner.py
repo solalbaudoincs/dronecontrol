@@ -12,6 +12,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+import pytorch_lightning as pl
 
 from .loss import TrajectoryLoss
 from .simple_optimizer import SimpleOptimizer
@@ -27,89 +28,46 @@ class ControlRunner:
 
     def __init__(
         self,
+        model_class: pl.LightningModule,
         ckpt_path: Optional[str] = None,
-        model_class: Optional[Callable[..., nn.Module]] = None,
-        model_kwargs: Optional[Dict[str, Any]] = None,
         device: str = "cpu",
     ):
+        """Initialize ControlRunner. Loads model from checkpoint if provided. Model kwargs are passed to the model constructor."""
         
-        self.ckpt_path = Path(ckpt_path) if ckpt_path else None
         self.model_class = model_class
-        self.model_kwargs = model_kwargs or {}
+        self.ckpt_path = Path(ckpt_path) if ckpt_path else None
         self.device = torch.device(device)
-        self.accel_model: Optional[nn.Module] = None
+        
+        # Load model immediately during init
+        self.accel_model = self._load_model()
 
-    def load_model(self) -> nn.Module:
+    def _load_model(self) -> nn.Module:
         """Load or instantiate the acceleration model and move it to device.
-
-        Behavior:
-          - If `accel_model` is already set, return it.
-          - If `ckpt_path` + `model_class` provided: instantiate model_class(**model_kwargs)
-            then attempt to load state dict from checkpoint.
-          - If `ckpt_path` provided but no model_class: try to load a full module
-            or a state_dict from the checkpoint and return a module if possible.
+        
+        Two scenarios:
+          1. With checkpoint: use Lightning's load_from_checkpoint if LightningModule
+          2. Without checkpoint: instantiate fresh model with model_kwargs
         """
-        if self.accel_model is not None:
-            return self.accel_model
-
-        if self.model_class is not None:
-            model = self.model_class(**self.model_kwargs)
-            model.to(self.device)
-            if self.ckpt_path and self.ckpt_path.exists():
-                ckpt = torch.load(self.ckpt_path, map_location=self.device)
-                # common checkpoint formats
-                if isinstance(ckpt, dict):
-                    # try common keys
-                    for key in ("state_dict", "model_state_dict", "net", "params"):
-                        if key in ckpt:
-                            state = ckpt[key]
-                            break
-                    else:
-                        state = ckpt
-                else:
-                    state = ckpt
-
-                # if the checkpoint stores a LightningModule state_dict with prefixes,
-                # try to filter keys if necessary
-                if isinstance(state, dict):
-                    # try loading directly, if keys mismatch try stripping 'model.' prefixes
-                    try:
-                        model.load_state_dict(state)
-                    except Exception:
-                        new_state = {k.replace('model.', ''): v for k, v in state.items()}
-                        model.load_state_dict(new_state)
-
-            model.eval()
-            self.accel_model = model
-            return model
-
-        # Try to load a fully saved nn.Module from checkpoint path
-        if self.ckpt_path and self.ckpt_path.exists():
-            obj = torch.load(self.ckpt_path, map_location=self.device)
-            if isinstance(obj, nn.Module):
-                obj.to(self.device)
-                obj.eval()
-                self.accel_model = obj
-                return obj
-            # If dict, maybe already a state_dict
-            if isinstance(obj, dict):
-                # as a fallback, return a lightweight identity model that subtracts gravity
-                # user should provide model_class for better behavior
-                class IdentityAccel(nn.Module):
-                    def forward(self, u):
-                        return u
-
-                model = IdentityAccel().to(self.device)
-                try:
-                    model.load_state_dict(obj)
-                except Exception:
-                    # ignore
-                    pass
+        # Scenario 1: Load from checkpoint
+        if isinstance(self.ckpt_path, str) and self.ckpt_path.exists():
+            try:
+                model = self.model_class.load_from_checkpoint(
+                    self.ckpt_path,
+                    map_location=self.device,
+                )
+                model.to(self.device)
                 model.eval()
-                self.accel_model = model
                 return model
-
-        raise RuntimeError("No model available: provide `model_class` or valid `ckpt_path`")
+            except (TypeError, AttributeError):
+                pass
+            
+            raise RuntimeError(f"Failed to load model from checkpoint: {self.ckpt_path}")
+        
+        # Scenario 2: Instantiate fresh model without checkpoint
+        model = self.model_class
+        model.to(self.device)
+        model.eval()
+        return model
 
 
     def run(
@@ -121,7 +79,10 @@ class ControlRunner:
         dt: float,
         Q: torch.Tensor,
         R: torch.Tensor,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        lr: float,
+        max_iter: int,
+        history_size: int,
+        max_epochs: int,
     ) -> torch.Tensor:
         """Run the optimizer and return optimized controls `u`.
 
@@ -136,7 +97,8 @@ class ControlRunner:
         Returns:
             Optimized control `u` as torch.Tensor with same shape as `x_ref`.
         """
-        model = self.load_model()
+        # Model is already loaded in __init__
+        model = self.accel_model
 
         device = self.device
 
@@ -152,7 +114,9 @@ class ControlRunner:
             # TrajectoryLoss expects (u, x_ref, v0, x0)
             return loss_module(u, xref_local, torch.tensor([v0], device=device), torch.tensor([x0], device=device))
 
-        optimizer = SimpleOptimizer(trajectory_loss_fn=loss_wrapper, )
+        optimizer = Step(
+            trajectory_loss_fn=loss_wrapper, lr=lr, max_iter=max_iter, history_size=history_size, max_epochs=max_epochs
+        )
 
         # initial control guess
         u_init = torch.zeros_like(x_ref, device=device)
