@@ -1,5 +1,6 @@
 from dronecontrol.simulink.engine import initialize_matlab_engine, colvec
 import matplotlib.pyplot as plt
+from typing import Optional
 import numpy as np
 INPUT_FILTER_TAU = 0.2  # time constant for input low-pass filter (seconds)
 DT = 0.05  # Default time step for simulation (in seconds)  
@@ -31,6 +32,12 @@ class DroneSimulator:
     def ang_vel(self):
         return self.state[9:12]
     
+
+    def reset(self, initial_state: Optional[np.ndarray] = None) -> None:
+        if initial_state is not None:
+            self.state = initial_state
+        self.filtered_input = None
+
     def _compute_deriv(self, state: np.ndarray, control_input: np.ndarray) -> np.ndarray:
         """Helper to compute dxdt using the MATLAB model."""
         x_matlab = colvec(state.tolist())
@@ -56,14 +63,13 @@ class DroneSimulator:
         k4 = self._compute_deriv(self.state + dt * k3, voltage)
         
         # Weighted average update
-        dx_avg = (k1 + 2 * k2 + 2 * k3 + k4) / 6.0
-        self.state += dt * dx_avg
+        dxdt_avg = (k1 + 2 * k2 + 2 * k3 + k4) / 6.0
+        self.state += dt * dxdt_avg
         
         # For consistency, return new state and k1 as approximate dxdt
-        return self.state, k1
+        return self.state, dxdt_avg
     
 
-    
 
 if __name__ == "__main__":
     # we validate the correctness of  our python bindings
@@ -90,14 +96,16 @@ if __name__ == "__main__":
     dl.setup("fit")
     data : AVDataset = dl.train_dataset
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    sim = DroneSimulator(initial_state=np.zeros(12))
+    print("Starting simulation comparison...")
     for idx, i in enumerate([0,1,2]):
-        sim = DroneSimulator(initial_state=np.zeros(12))
+        sim.reset()
         u : np.ndarray = data[i][0].squeeze().numpy()
         a = data[i][1].squeeze().numpy()
         a_simu = []
         
-        for t in range(len(u)):
-            state, dxdt = sim.step(np.full((4,), u[t]), dt=0.05) #type: ignore
+        for t in tqdm(range(len(u))):
+            state, dxdt = sim.step(np.full((4,), u[t])) #type: ignore
             a_simu.append(dxdt[5])  # extract linear acceleration
 
 
