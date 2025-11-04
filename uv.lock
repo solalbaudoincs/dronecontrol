@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = "==3.11.14"
+requires-python = "==3.11.*"
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -215,6 +215,7 @@ name = "dronecontrol"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "filterpy" },
     { name = "ipykernel" },
     { name = "lightning" },
     { name = "matplotlib" },
@@ -228,6 +229,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "filterpy", specifier = ">=1.4.5" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "lightning", specifier = ">=2.5.5" },
     { name = "matplotlib", specifier = ">=3.10.7" },
@@ -256,6 +258,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/58/46/0028a82567109b5ef
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/91/7216b27286936c16f5b4d0c530087e4a54eead683e6b0b73dd0c64844af6/filelock-3.20.0-py3-none-any.whl", hash = "sha256:339b4732ffda5cd79b13f4e2711a31b0365ce445d95d243bb996273d072546a2", size = 16054, upload-time = "2025-10-08T18:03:48.35Z" },
 ]
+
+[[package]]
+name = "filterpy"
+version = "1.4.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/1d/ac8914360460fafa1990890259b7fa5ef7ba4cd59014e782e4ab3ab144d8/filterpy-1.4.5.zip", hash = "sha256:4f2a4d39e4ea601b9ab42b2db08b5918a9538c168cff1c6895ae26646f3d73b1", size = 177985, upload-time = "2018-10-10T22:38:24.63Z" }
 
 [[package]]
 name = "fonttools"
