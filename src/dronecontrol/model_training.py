@@ -14,10 +14,7 @@ from .models import MODEL_REGISTRY
 
 LOGGER = logging.getLogger(__name__)
 
-DEFAULT_MODEL_PARAMS: Dict[str, Dict[str, Any]] = {
-    "gru": {"hidden_dim": 10, "num_layers": 1, "dropout": 0.2},
-    "rnn": {"hidden_dim": 16, "num_layers": 1, "dropout": 0.0},
-}
+DEFAULT_MODEL_PARAMS: Dict[str, Dict[str, Any]] = {}
 
 
 def _resolve_accelerator(device_pref: str) -> Tuple[str, str | int]:
@@ -30,7 +27,7 @@ def _resolve_accelerator(device_pref: str) -> Tuple[str, str | int]:
 
 
 def _collect_model_params(model_name: str, training_cfg: Dict[str, Any]) -> Dict[str, Any]:
-    params = DEFAULT_MODEL_PARAMS.get(model_name, {}).copy()
+    params = training_cfg.get("model_params", {}).get(model_name, {})
     overrides = training_cfg.get("model_params", {}).get(model_name, {})
     params.update(overrides)
     return params
@@ -52,10 +49,10 @@ def train_models_for_scenario(
         LOGGER.warning("No models configured for scenario %s", scenario_name)
         return []
 
-    lr = float(training_cfg.get("lr", 1e-3))
-    epochs = int(training_cfg.get("epochs", 50))
-    seed = int(training_cfg.get("seed", general_cfg.get("seed", 42)))
-    patience = int(training_cfg.get("early_stopping_patience", 10))
+    lr = float(training_cfg["lr"])
+    epochs = int(training_cfg["epochs"])
+    seed = int(training_cfg["seed"])
+    patience = int(training_cfg["early_stopping_patience"])
 
     pl.seed_everything(seed, workers=True)
 
@@ -77,10 +74,15 @@ def train_models_for_scenario(
             continue
 
         model_params = _collect_model_params(model_name, training_cfg)
+        scheduler_cfg = training_cfg.get("scheduler", {})
+        scheduler_type = scheduler_cfg.get("type")
+        scheduler_kwargs = scheduler_cfg.get("params", {})
         model = model_cls(
             input_dim,
             output_dim,
             lr=lr,
+            scheduler_type=scheduler_type,
+            scheduler_kwargs=scheduler_kwargs,
             **model_params,
         )
 
@@ -122,6 +124,7 @@ def train_models_for_scenario(
         )
 
         trainer.fit(model, datamodule=data_module)
+        trainer.test(model, datamodule=data_module)
         trainer.validate(model, datamodule=data_module)
         trainer.test(model, datamodule=data_module)
 
