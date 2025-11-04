@@ -1,7 +1,6 @@
 """LSTM Lightning module."""
 
-from __future__ import annotations
-
+from typing import Tuple
 import torch
 from torch import nn
 
@@ -19,7 +18,7 @@ class LSTM(BaseModel):
         lr: float,
         **_: object,
     ):
-        super().__init__(input_dim, output_dim, lr)
+        super().__init__(input_dim, output_dim, hidden_dim, lr)
         self.save_hyperparameters()
 
         self.batch_norm = nn.BatchNorm1d(input_dim)
@@ -33,14 +32,18 @@ class LSTM(BaseModel):
         )
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         # x: [batch, seq_len, input_dim]
 
         x = x.permute(0, 2, 1)          # [batch, input_dim, seq_len]
         x = self.batch_norm(x)
         x = x.permute(0, 2, 1)          # [batch, seq_len, input_dim]
 
-        h, _ = self.lstm(x)
-        out = self.regressor(h)
+        if hidden is not None:
+            out, h = self.lstm(x, hidden)
+        else:
+            out, h = self.lstm(x)
 
-        return out
+        out = self.regressor(out)
+
+        return out, h
