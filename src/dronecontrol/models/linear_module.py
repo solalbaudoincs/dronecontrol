@@ -18,9 +18,7 @@ class LinearModel(BaseModel):
             ):
         super().__init__(input_dim, output_dim, lr, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
         self.model = nn.Sequential(
-            nn.Linear(input_dim, 32),
-            nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(input_dim, output_dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]

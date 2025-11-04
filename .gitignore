@@ -1,6 +1,6 @@
 data/
 logs/
-models/
+models_checkpoints/
 predictions_plots/
 
 # Byte-compiled / optimized / DLL files
