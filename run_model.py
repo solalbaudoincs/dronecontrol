@@ -7,6 +7,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from dronecontrol.data_process.data_cleaning import AVDataCleaner
 from dronecontrol.data_process.data_loader import AVDataLoader
 from dronecontrol.models.gru_module import GRU
+from dronecontrol.models.lstm import LSTM
 from dronecontrol.models.rnn import model_nn
 from dronecontrol.globals import INPUT_DATA, OUTPUT_DATA, BASEDIR
 
@@ -16,7 +17,7 @@ def main():
     
     # Configuration
     seed = 42
-    epochs = 200
+    epochs = 20
     batch_size = 32
     lr = 1e-2
     val_split = 0.2
@@ -25,7 +26,7 @@ def main():
     num_layers = 1
     dropout = 0.0
     log_dir = "logs"
-    checkpoint_dir = "models"
+    checkpoint_dir = "models_checkpoints"
     # Set seed for reproducibility
     pl.seed_everything(seed)
     
@@ -61,14 +62,13 @@ def main():
     # ==================== MODEL ====================
     print("[4/4] Initializing GRU model...")
     
-    model = model_nn(
-        hidden_size=hidden_dim,
+    model = LSTM(
+        input_dim=1,
+        output_dim=1,
+        hidden_dim=hidden_dim,
         num_layers=num_layers,
         dropout=dropout,
         lr=lr,
-        rnn_type='GRU',
-        bidirectional=False,
-        weight_decay=1e-5
     )
     
     print(f"  ✓ GRU model initialized")

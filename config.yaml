@@ -19,13 +19,29 @@ scenarios:
       window_size: 50
       window_stride: 10
     training:
-      models: ["rnn"]
-      epochs: 50
-      batch_size: 32
-      lr: 0.01
+      models: ["gru"]
+      epochs: 1000
+      batch_size: 128
+      lr: 0.1
       val_split: 0.2
       test_split: 0.1
       seed: 42
+      early_stopping_patience: 10
+      model_params:
+        gru:
+          hidden_dim: 16
+          num_layers: 2
+          dropout: 0.0
+        rnn:
+          hidden_dim: 16
+          num_layers: 1
+          dropout: 0.0
+      scheduler:
+        type: "ReduceLROnPlateau"
+        params:
+          patience: 10
+          factor: 0.5
+          min_lr: 0.000001
     control:
       methods: ["mpc"]
       horizon: 10
