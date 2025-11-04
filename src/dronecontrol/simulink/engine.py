@@ -9,10 +9,22 @@ def colvec(seq: List[float]) -> matlab.single:
 
 def initialize_matlab_engine(pcode_path: str) -> matlab.engine.MatlabEngine:
     """
-    Start MATLAB Engine, add path, and verify model (no controller code).
+    Start or connect to a MATLAB Engine, add path, and verify model.
+    Tries to connect to a shared engine first; otherwise starts one with
+    faster startup options (no desktop/JVM). Then adds the p-code path.
     """
 
-    eng = matlab.engine.start_matlab()
+    # Try to connect to an existing shared engine (fast, avoids startup cost)
+    try:
+        names = matlab.engine.find_matlab()
+    except Exception:
+        names = []
+    if names:
+        eng = matlab.engine.connect_matlab(names[0])
+    else:
+        # Start MATLAB without desktop/JVM to reduce startup time
+        # Note: adjust options if certain toolboxes require JVM
+        eng = matlab.engine.start_matlab("-nojvm -nodisplay -nosplash")
     if type(eng) is not matlab.engine.MatlabEngine:
         raise ValueError("Failed to start MATLAB engine.")
     eng.addpath(pcode_path, nargout=0)
@@ -27,7 +39,7 @@ def initialize_matlab_engine(pcode_path: str) -> matlab.engine.MatlabEngine:
     # Test model
     x_test = colvec([0] * 12)
     u_test = colvec([1] * 4)
-    dxdt_test = eng.quadcopter_model(x_test, u_test) 
+    dxdt_test = eng.feval('quadcopter_model', x_test, u_test, nargout=1)
     print("Model test successful. dxdt shape:", np.array(dxdt_test).shape)
 
     return eng
