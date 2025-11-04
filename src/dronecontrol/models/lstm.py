@@ -46,10 +46,6 @@ class LSTM(BaseModel):
     def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         # x: [batch, seq_len, input_dim]
 
-        x = x.permute(0, 2, 1)          # [batch, input_dim, seq_len]
-        x = self.batch_norm(x)
-        x = x.permute(0, 2, 1)          # [batch, seq_len, input_dim]
-
         if hidden is not None:
             out, h = self.lstm(x, hidden)
         else:
