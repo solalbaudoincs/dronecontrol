@@ -24,21 +24,23 @@ class TrajectoryLoss(nn.Module):
         assert Q_tensor.shape == (horizon, horizon), "Q tensor shape mismatch"
         assert R_tensor.shape == (horizon, horizon), "R tensor shape mismatch"
 
-    def compute_trajectory(self, u: torch.Tensor) -> torch.Tensor:
+    def compute_trajectory(self, u: torch.Tensor, v0: torch.Tensor, x0: torch.Tensor) -> torch.Tensor:
 
         assert u.shape[0] == self.horizon, "Control input horizon mismatch"
 
         a_hat = self.accel_model(u)
         v_hat = torch.zeros_like(a_hat)
+        v_hat[0] = v0
         v_hat[1:] = v_hat[:-1] + a_hat[:-1] * self.dt
         x_hat = torch.zeros_like(v_hat)
-        x_hat[1:] = x_hat[:-1] + v_hat[:-1] * self.dt + 0.5 * a_hat[:-1] * self.dt**2
+        x_hat[0] = x0
+        x_hat[1:] = x_hat[:-1] + v_hat[:-1] * self.dt + 0.5 * a_hat[:-1] * self.dt**2 
 
         return x_hat
 
-    def forward(self, u: torch.Tensor, x_ref: torch.Tensor) -> torch.Tensor:
+    def forward(self, u: torch.Tensor, x_ref: torch.Tensor, v0: torch.Tensor, x0: torch.Tensor) -> torch.Tensor:
 
-        x_pred = self.compute_trajectory(u)
+        x_pred = self.compute_trajectory(u, v0, x0)
 
         total_loss = torch.mean( (x_pred - x_ref).T @ self.R @ (x_pred - x_ref) + (u.T @ self.Q @ u))
 
