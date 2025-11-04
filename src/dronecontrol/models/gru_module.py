@@ -19,7 +19,7 @@ class GRU(BaseModel):
         lr: float = 1e-3,
         **_,
     ):
-        super().__init__(input_dim, output_dim, lr, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
+        super().__init__(input_dim, output_dim, lr, hidden_dim=hidden_dim, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
 
         self.save_hyperparameters({
             "input_dim": input_dim,
@@ -43,6 +43,14 @@ class GRU(BaseModel):
         self.batchnorm = nn.BatchNorm1d(input_dim, affine=False)
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
+    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        
+        x = self.batchnorm(x)
+        if hidden is not None:
+            out, h = self.gru(x, hidden)
+        else:
+            out, h = self.gru(x)
+        return self.regressor(out), h
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         """Forward pass through the GRU model.
         
