@@ -27,7 +27,7 @@ class TrajectoryLoss(nn.Module):
 
     def compute_trajectory(self, u: torch.Tensor, hidden: torch.Tensor, vk: torch.Tensor, xk: torch.Tensor) -> torch.Tensor:
 
-        assert u.shape[0] == self.horizon, "Control input horizon mismatch"
+        assert u.shape[1] == self.horizon, "Control input horizon mismatch"
 
         a_hat, _ = self.accel_model(u, hidden)
         v_hat = torch.zeros_like(a_hat)
@@ -39,10 +39,10 @@ class TrajectoryLoss(nn.Module):
 
         return x_hat
 
-    def forward(self, u: torch.Tensor, x_ref: torch.Tensor, hidden: torch.Tensor, vk: torch.Tensor, xk: torch.Tensor) -> torch.Tensor:
+    def forward(self, x_ref: torch.Tensor, u: torch.Tensor, hidden: torch.Tensor, vk: torch.Tensor, xk: torch.Tensor) -> torch.Tensor:
 
         x_pred = self.compute_trajectory(u, hidden, vk, xk)
 
-        total_loss = torch.mean( (x_pred - x_ref).T @ self.R @ (x_pred - x_ref) + (u.T @ self.Q @ u))
+        total_loss = torch.mean( (x_pred.squeeze() - x_ref).T @ self.R @ (x_pred.squeeze() - x_ref) + (u.squeeze().T @ self.Q @ u.squeeze()))
 
         return total_loss

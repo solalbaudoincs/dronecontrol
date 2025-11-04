@@ -218,6 +218,7 @@ dependencies = [
     { name = "filterpy" },
     { name = "ipykernel" },
     { name = "lightning" },
+    { name = "matlab" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -232,6 +233,7 @@ requires-dist = [
     { name = "filterpy", specifier = ">=1.4.5" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "lightning", specifier = ">=2.5.5" },
+    { name = "matlab", specifier = ">=0.1" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "numpy", specifier = ">=2.3.4" },
     { name = "pandas", specifier = ">=2.3.3" },
@@ -542,6 +544,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/83/8a/4414c03d3f891739326e1783338e48fb49781cc915b2e0ee052aa490d586/markupsafe-3.0.3-cp311-cp311-win_amd64.whl", hash = "sha256:de8a88e63464af587c950061a5e6a67d3632e36df62b986892331d4620a35c01", size = 15077, upload-time = "2025-09-27T18:36:29.025Z" },
     { url = "https://files.pythonhosted.org/packages/35/73/893072b42e6862f319b5207adc9ae06070f095b358655f077f69a35601f0/markupsafe-3.0.3-cp311-cp311-win_arm64.whl", hash = "sha256:3b562dd9e9ea93f13d53989d23a7e775fdfd1066c33494ff43f5418bc8c58a5c", size = 13876, upload-time = "2025-09-27T18:36:29.954Z" },
 ]
+
+[[package]]
+name = "matlab"
+version = "0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/ea/1ecc1d9dfde594111b395dff9637183225dfb55b54fff4a906ba0ad5095a/matlab-0.1.tar.gz", hash = "sha256:8b13f7f121fcfb138203e35fa931e5f434abeefccfc583f8b3b4e2c0d0e7bcae", size = 538, upload-time = "2014-10-03T22:43:53.169Z" }
 
 [[package]]
 name = "matplotlib"
