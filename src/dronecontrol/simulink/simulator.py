@@ -1,16 +1,19 @@
 from dronecontrol.simulink.engine import initialize_matlab_engine, colvec
 import matplotlib.pyplot as plt
-
+import numpy as np
+INPUT_FILTER_TAU = 0.2  # time constant for input low-pass filter (seconds)
 DT = 0.05  # Default time step for simulation (in seconds)  
 
 DEFAULT_P_CODE_PATH = "matlabfiles"
 
 
 class DroneSimulator:
-    
-    def __init__(self, initial_state = [0]*12, path_to_pcode: str = DEFAULT_P_CODE_PATH) -> None:
+
+    def __init__(self, initial_state : np.ndarray = np.zeros(12), path_to_pcode: str = DEFAULT_P_CODE_PATH) -> None:
         self.eng = initialize_matlab_engine(path_to_pcode)
-        self.state = initial_state
+        self.state : np.ndarray = initial_state
+        # filtered input state (initialized lazily on first step)
+        self.filtered_input = None
 
 
     @property
@@ -29,17 +32,79 @@ class DroneSimulator:
     def ang_vel(self):
         return self.state[9:12]
     
-    def step(self, control_input: list[float], dt : float = DT) -> tuple[list[float],list[float]]:
-        """Advance the simulation by one time step using the provided control input."""
-        x_matlab = colvec(self.state)
-        u_matlab = colvec(control_input)
-        dxdt_matlab : list = self.eng.quadcopter_model(x_matlab, u_matlab) #type: ignore (if its not 12x1, will raise at runtime)
-        dxdt = [float(val[0]) for val in dxdt_matlab]
-        print("dxdt:", dxdt)
-        # Simple Euler integration
-        self.state = [s + dx * dt for s, dx in zip(self.state, dxdt)]
-        return self.state, dxdt
+    def _compute_deriv(self, state: np.ndarray, control_input: np.ndarray) -> np.ndarray:
+        """Helper to compute dxdt using the MATLAB model."""
+        voltage = 10*np.tanh(control_input)
+        x_matlab = colvec(state.tolist())
+        u_matlab = colvec(voltage.tolist())
+        dxdt_matlab = self.eng.quadcopter_model(x_matlab, u_matlab)  # Assumes 12x1 output
+        return np.array(dxdt_matlab).flatten()
+    
+    def step(self, control_input: np.ndarray, dt: float = DT) -> tuple[np.ndarray, np.ndarray]:
+        """Advance the simulation by one time step using RK4 integration."""
+        # Apply first-order low-pass filter to the control input (per-channel)
+        control = np.asarray(control_input, dtype=float)
+        if self.filtered_input is None:
+            self.filtered_input = np.zeros_like(control)
+        tau = INPUT_FILTER_TAU
+        alpha = dt / (tau + dt) if (tau + dt) != 0 else 1.0
+        # exponential smoothing / discrete-time first-order filter
+        self.filtered_input = self.filtered_input + alpha * (control - self.filtered_input)
+        voltage = 10*np.tanh(self.filtered_input)
+        # RK4 intermediate steps (using the filtered input held constant during the step)
+        k1 = self._compute_deriv(self.state, voltage)
+        k2 = self._compute_deriv(self.state + 0.5 * dt * k1, voltage)
+        k3 = self._compute_deriv(self.state + 0.5 * dt * k2, voltage)
+        k4 = self._compute_deriv(self.state + dt * k3, voltage)
+        
+        # Weighted average update
+        dx_avg = (k1 + 2 * k2 + 2 * k3 + k4) / 6.0
+        self.state += dt * dx_avg
+        
+        # For consistency, return new state and k1 as approximate dxdt
+        return self.state, k1
     
 
     
 
+if __name__ == "__main__":
+    # we validate the correctness of  our python bindings
+        
+    from pathlib import Path
+    import yaml
+    import numpy as np    
+    from dronecontrol.data_process.preparation import prepare_scenario_data
+    from dronecontrol.data_process.data_loader import AVDataset
+        
+    def load_config(path: Path):
+        with path.open("r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        if not isinstance(config, dict):
+            raise ValueError("Configuration file must define a mapping")
+        config.setdefault("scenarios", [])
+        config.setdefault("general", {})
+        return config  # type: ignore[return-value]
+
+    cfg_path = Path("config.yaml")
+    cfg = load_config(cfg_path)
+
+    dl, _ = prepare_scenario_data(cfg["scenarios"][0], cfg_path.parent)
+    dl.setup("fit")
+    data : AVDataset = dl.train_dataset
+    for i in [0]:
+        sim = DroneSimulator(initial_state=np.zeros(12))
+        u : np.ndarray = data[i][0].squeeze().numpy()
+        a = data[i][1].squeeze().numpy()
+        a_simu = []
+        
+        for t in range(len(u)):
+            state, dxdt = sim.step(np.full((4,), u[t]), dt=0.05) #type: ignore
+            a_simu.append(dxdt[5])  # extract linear acceleration
+
+
+        plt.plot(np.array(a_simu))
+        plt.plot(a)
+        plt.title('dxdt')
+        plt.legend(["simulated","reference"])
+        plt.show()
+    
