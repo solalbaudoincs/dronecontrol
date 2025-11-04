@@ -305,7 +305,8 @@ class Optimizer:
         Returns:
             Optimized control input tensor
         """
-        u = torch.zeros(horizon, requires_grad=True)
+
+        u = torch.zeros((1, horizon, 1), requires_grad=True)
 
 
         optimizer = torch.optim.LBFGS(
@@ -316,7 +317,7 @@ class Optimizer:
 
         def closure():
             optimizer.zero_grad()
-            loss = self.trajectory_loss_fn(u, hidden, x_ref, vk, xk)
+            loss = self.trajectory_loss_fn(x_ref, u, hidden, vk, xk)
             loss.backward()
             return loss
 
@@ -331,7 +332,7 @@ class Optimizer:
         if verbose:
             print(f"Optimization completed. Final loss: {losses[-1]:.6f}")
 
-        return u.detach()[0]
+        return u.detach()[0, 0, 0]  # Return optimized control for the first step
 
     @staticmethod
     def get_tensions(tensions: torch.Tensor, u_min: float, u_max: float) -> torch.Tensor:
@@ -346,10 +347,10 @@ class Optimizer:
         ) -> torch.Tensor:
         """Optimize the control trajectory over multiple steps."""
 
-        u = torch.zeros(self.nb_steps, requires_grad=True)
+        u = torch.zeros((1, self.nb_steps, 1), requires_grad=False)
         vk = v0
         xk = x0
-        hk = torch.zeros(self.hidden_dim)  # Placeholder for hidden state
+        hk = torch.zeros((1, 1, self.hidden_dim))  # Placeholder for hidden state
         droneSimulator = DroneSimulator()
         neuralEKF = NeuralEKF(
                 model=self.accel_model,
@@ -359,7 +360,7 @@ class Optimizer:
 
         for step in range(self.nb_steps):
 
-            u[step] = self.step(x_ref, hk, vk, xk, horizon=self.horizon, verbose=verbose)
+            u[0, step, 0] = self.step(x_ref, hk, vk, xk, horizon=self.horizon, verbose=verbose)
             ak = torch.tensor(droneSimulator.accel(control_input=u.detach().numpy()))  # assuming 4 motors
             vk = torch.tensor(droneSimulator.vel)
             xk = torch.tensor(droneSimulator.pos)
@@ -367,12 +368,12 @@ class Optimizer:
             if self.use_ekf :
                 # 2. L'EKF corrige cet état avec la mesure réelle
                 hk = torch.tensor(neuralEKF.step(
-                    u=u[step].detach().numpy(),
+                    u=u[0, step, 0].detach().numpy(),
                     a_measured=ak.detach().numpy(), 
                     hk=hk.detach().numpy()
-                ))
+                ))[None, :, None]
             else:
-                hk = self.update_state(u[step], hk)
+                hk = self.update_state(u[:, step, :], hk)
 
         return u
 
@@ -383,6 +384,6 @@ class Optimizer:
             ) -> torch.Tensor:
         """Update the state based on control input u using the accel model."""
 
-        _, hidden_next = self.accel_model(u.unsqueeze(0), hidden.unsqueeze(0))
+        _, hidden_next = self.accel_model(u.unsqueeze(0), hidden)
 
         return hidden_next.squeeze()
