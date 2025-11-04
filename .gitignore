@@ -225,3 +225,5 @@ __marimo__/
 models
 logs
 reports
+
+*.prof
