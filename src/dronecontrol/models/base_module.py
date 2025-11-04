@@ -11,7 +11,16 @@ from pathlib import Path
 
 class BaseModel(pl.LightningModule):
 
-    def __init__(self, input_dim: int, output_dim: int, lr: float, hidden_dim: int, scheduler_type: Optional[str], scheduler_kwargs: Optional[dict]):
+    def __init__(
+            self, 
+            input_dim: int, 
+            output_dim: int, 
+            hidden_dim: int,
+            lr: float, 
+            scheduler_type: Optional[str] = "ReduceLROnPlateau", 
+            scheduler_kwargs: Optional[dict] = None
+            ):
+        
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -24,7 +33,7 @@ class BaseModel(pl.LightningModule):
         self.scheduler_kwargs = scheduler_kwargs or {}
         self.mse_loss = nn.MSELoss()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - abstract
+    def forward(self, u: torch.Tensor, hidden_state: Optional[torch.Tensor]) -> torch.Tensor:  # pragma: no cover - abstract
         raise NotImplementedError
 
     def training_step(self, batch, batch_idx):  # type: ignore[override]

@@ -1,6 +1,7 @@
 """Vanilla RNN Lightning module."""
 
 from __future__ import annotations
+from typing import Optional
 
 import torch
 from torch import nn
@@ -15,12 +16,21 @@ class RNN(BaseModel):
         output_dim: int,
         hidden_dim: int,
         num_layers: int,
-        dropout: float,
-        lr: float,
+        scheduler_type: Optional[str] = "ReduceLROnPlateau",
+        scheduler_kwargs: Optional[dict] = None,
+        dropout: float = 0.0,
+        lr: float = 1e-2,
         **_,
     ):
 
-        super().__init__(input_dim, output_dim, lr, hidden_dim=hidden_dim, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
+        super().__init__(
+            input_dim, 
+            output_dim, 
+            hidden_dim, 
+            lr,
+            scheduler_type=scheduler_type,
+            scheduler_kwargs=scheduler_kwargs
+            )
         
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
