@@ -123,6 +123,7 @@ def train_models_for_scenario(
 
         trainer.fit(model, datamodule=data_module)
         trainer.validate(model, datamodule=data_module)
+        trainer.test(model, datamodule=data_module)
 
         best_ckpt = checkpoint_callback.best_model_path
         if best_ckpt:
