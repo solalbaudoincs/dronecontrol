@@ -1,7 +1,7 @@
 
 import torch
 import pytest
-from dronecontrol.commande.simple_optimizer import SimpleOptimizer
+from dronecontrol.commande.optimizer import SimpleOptimizer
 
 
 def simple_quadratic_loss(u, x_ref):
