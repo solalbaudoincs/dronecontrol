@@ -2,6 +2,7 @@ from dronecontrol.simulink.engine import initialize_matlab_engine, colvec
 import matplotlib.pyplot as plt
 from typing import Optional
 import numpy as np
+from tqdm import tqdm
 INPUT_FILTER_TAU = 0.2  # time constant for input low-pass filter (seconds)
 DT = 0.05  # Default time step for simulation (in seconds)  
 
@@ -79,7 +80,12 @@ if __name__ == "__main__":
     import numpy as np    
     from dronecontrol.data_process.preparation import prepare_scenario_data
     from dronecontrol.data_process.data_loader import AVDataset
-        
+    import argparse
+    import cProfile
+    import pstats
+    import io
+    import sys
+
     def load_config(path: Path):
         with path.open("r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -89,29 +95,51 @@ if __name__ == "__main__":
         config.setdefault("general", {})
         return config  # type: ignore[return-value]
 
-    cfg_path = Path("config.yaml")
-    cfg = load_config(cfg_path)
+    def run_demo():
+        cfg_path = Path("config.yaml")
+        cfg = load_config(cfg_path)
 
-    dl, _ = prepare_scenario_data(cfg["scenarios"][0], cfg_path.parent)
-    dl.setup("fit")
-    data : AVDataset = dl.train_dataset
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    sim = DroneSimulator(initial_state=np.zeros(12))
-    print("Starting simulation comparison...")
-    for idx, i in enumerate([0,1,2]):
-        sim.reset()
-        u : np.ndarray = data[i][0].squeeze().numpy()
-        a = data[i][1].squeeze().numpy()
-        a_simu = []
-        
-        for t in tqdm(range(len(u))):
-            state, dxdt = sim.step(np.full((4,), u[t])) #type: ignore
-            a_simu.append(dxdt[5])  # extract linear acceleration
+        dl, _ = prepare_scenario_data(cfg["scenarios"][0], cfg_path.parent)
+        dl.setup("fit")
+        data : AVDataset = dl.train_dataset
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        sim = DroneSimulator(initial_state=np.zeros(12))
+        print("Starting simulation comparison...")
+        for idx, i in enumerate([0,1,2]):
+            sim.reset()
+            u : np.ndarray = data[i][0].squeeze().numpy()
+            a = data[i][1].squeeze().numpy()
+            a_simu = []
 
+            for t in tqdm(range(len(u))):
+                state, dxdt = sim.step(np.full((4,), u[t])) #type: ignore
+                a_simu.append(dxdt[5])  # extract linear acceleration
 
-        axes[idx].plot(np.array(a_simu))
-        axes[idx].plot(a)
-        axes[idx].set_title(f'dxdt for sample {i}')
-        axes[idx].legend(["simulated","reference"])
-    plt.show()
+            axes[idx].plot(np.array(a_simu))
+            axes[idx].plot(a)
+            axes[idx].set_title(f'dxdt for sample {i}')
+            axes[idx].legend(["simulated","reference"])
+        plt.show()
+
+    parser = argparse.ArgumentParser(description="Run simulator example (optionally profiled)")
+    parser.add_argument("--profile", action="store_true", help="Enable cProfile and write stats to file")
+    parser.add_argument("--profile-out", default="simulator.prof", help="Filename to write profiler stats to")
+    parser.add_argument("--print-top", type=int, default=50, help="Print top N lines from the profiler by cumulative time")
+    args = parser.parse_args()
+
+    if args.profile:
+        pr = cProfile.Profile()
+        pr.enable()
+        try:
+            run_demo()
+        finally:
+            pr.disable()
+            pr.dump_stats(args.profile_out)
+            s = io.StringIO()
+            ps = pstats.Stats(pr, stream=s).sort_stats('cumtime')
+            ps.print_stats(args.print_top)
+            print(f"Profile written to: {args.profile_out}")
+            print(s.getvalue())
+    else:
+        run_demo()
     
