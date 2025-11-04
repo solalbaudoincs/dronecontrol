@@ -17,10 +17,10 @@ class RNN(BaseModel):
         num_layers: int,
         dropout: float,
         lr: float,
-        **_: object,
+        **_,
     ):
 
-        super().__init__(input_dim, output_dim, lr, scheduler_type, scheduler_kwargs)
+        super().__init__(input_dim, output_dim, lr, scheduler_type=_['scheduler_type'], scheduler_kwargs=_['scheduler_kwargs'])
         self.save_hyperparameters({
             "hidden_dim": hidden_dim,
             "num_layers": num_layers,

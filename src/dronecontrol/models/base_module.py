@@ -29,25 +29,26 @@ class BaseModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch
         y_hat = self(x)
-        loss = self.mse_loss(y_hat, y)
+        print(f"y_hat shape: {y_hat.shape}, y shape: {y.shape}")
+        loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :])# we dont take into account the first timestep, as we cant predict without prior info
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch
         y_hat = self(x)
-        loss = self.mse_loss(y_hat, y)
+        loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :]) # we dont take into account the first timestep
         self.log("val_loss", loss, prog_bar=True)
         return loss
     
     def test_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch
         y_hat = self(x)
-        loss = self.mse_loss(y_hat, y)
+        loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :]) # we dont take into account the first timestep
         self.log("test_loss", loss)
         
         # Generate and save plots
-        fig = self.plot_predictions(y[0, ...].squeeze(-1), y_hat[0, ...].squeeze(-1))
+        fig = self.plot_predictions(y[0, :1, :].squeeze(-1), y_hat[0, :1, :].squeeze(-1))
         log_dir = Path("predictions_plots")
         log_dir.mkdir(parents=True, exist_ok=True)
         fig.savefig(log_dir / f"test_predictions_batch_{batch_idx}.png", dpi=100) # type: ignore[attr-defined]
