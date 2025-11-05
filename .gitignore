@@ -19,7 +19,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -222,7 +221,7 @@ __marimo__/
 
 
 **.ckpt
-models
+models/accel_vs_voltage
 logs
 reports
 
