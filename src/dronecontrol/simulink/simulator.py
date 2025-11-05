@@ -187,24 +187,22 @@ if __name__ == "__main__":
             # 1) Efficient rollout path
             sim.reset()
             _, trace = sim.rollout(u, dt=DT, return_trace=True)
-            if trace is not None and "DX" in trace:
-                dx_roll = trace["DX"]
-                a_roll = dx_roll[:,5]
-            else:
-                a_roll = np.array([])
+            dx_roll = trace["DX"]
+            a_roll = dx_roll[:,5]
+     
 
             # 2) Classic per-step path using .step
-            sim.reset()
-            a_step = []
-            for t in tqdm(range(len(u)), desc=f"sample {i} step sim", leave=True):
-                _, dxdt = sim.step(np.full((4,), u[t]))  # shape (4,)
-                a_step.append(dxdt[5])
-            a_step = np.asarray(a_step)
+            # sim.reset()
+            # a_step = []
+            # for t in tqdm(range(len(u)), desc=f"sample {i} step sim", leave=True):
+            #     _, dxdt = sim.step(np.full((4,), u[t]))  # shape (4,)
+            #     a_step.append(dxdt[5])
+            # a_step = np.asarray(a_step)
 
             # Plot both simulated vs reference
-            axes[idx].plot(a_roll, label="sim rollout")
-            axes[idx].plot(a_step, label="sim step")
+            #axes[idx].plot(a_step, label="sim step")
             axes[idx].plot(a, label="reference")
+            axes[idx].plot(a_roll, label="sim rollout")
             axes[idx].set_title(f'dxdt for sample {i}')
             axes[idx].legend()
         plt.show()
