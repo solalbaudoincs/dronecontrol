@@ -91,7 +91,7 @@ class MPCCVXPY(MPC):
         # Nominal trajectory
         with torch.no_grad():
             a_nominal_torch, _ = self.accel_model(u_torch, h_torch)
-            a_nominal = a_nominal_torch.squeeze().cpu().numpy()
+            a_nominal = a_nominal_torch.squeeze(0).squeeze(-1).cpu().numpy()
         
         # Compute sensitivity using finite differences
         epsilon = 1e-4
@@ -105,7 +105,7 @@ class MPCCVXPY(MPC):
             
             with torch.no_grad():
                 a_pert_torch, _ = self.accel_model(u_pert_torch, h_torch)
-                a_pert = a_pert_torch.squeeze().cpu().numpy()
+                a_pert = a_pert_torch.squeeze(0).squeeze(-1).cpu().numpy()
             
             B[i] = (a_pert[i] - a_nominal[i]) / epsilon
         
