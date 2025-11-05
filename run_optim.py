@@ -9,7 +9,10 @@ import numpy as np
 from dronecontrol.models.gru_module import GRU
 from dronecontrol.commande.MPC_torch import MPCTorch
 from dronecontrol.commande.MPC_cvxpy import MPCCVXPY
-from dronecontrol.simulink.simulator import DroneSimulator
+try:
+    from dronecontrol.simulink.simulator import DroneSimulator
+except ImportError:
+    print("Simulink simulator not available.")
 
 
 def main():
@@ -27,21 +30,21 @@ def main():
     
     # Load trained GRU model (assuming checkpoint exists)
     # For now, create untrained model - in practice, load from checkpoint
-    gru_model = GRU(
-        input_dim=1,
-        output_dim=1,
-        hidden_dim=hidden_dim,
-        num_layers=num_layers,
-        dropout=dropout,
-        lr=1e-2
-    )
+    # gru_model = GRU(
+    #     input_dim=1,
+    #     output_dim=1,
+    #     hidden_dim=hidden_dim,
+    #     num_layers=num_layers,
+    #     dropout=dropout,
+    #     lr=1e-2
+    # )
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    # gru_model = GRU.load_from_checkpoint(checkpoint_path)
+    gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
     
     # Set model to evaluation mode
-    
+    gru_model.to(device)
     # Initialize optimizer
     optimizer = MPCTorch(
         accel_model=gru_model,

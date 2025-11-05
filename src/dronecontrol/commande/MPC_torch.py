@@ -6,10 +6,14 @@ from typing import Optional
 
 from dronecontrol.commande.loss import TrajectoryLoss
 from dronecontrol.commande.neural_ekf import NeuralEKF
-from dronecontrol.simulink.simulator import DroneSimulator
 from dronecontrol.models.base_module import BaseModel
 
+try:
+    from dronecontrol.simulink.simulator import DroneSimulator
+except ImportError:
+    print("Simulink simulator not available.")
 
+    
 @dataclass
 class MPCState:
     """Container for MPC state at each time step."""
