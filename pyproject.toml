@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11.0,<3.12.0"
 dependencies = [
+    "cvxpy>=1.7.3",
     "filterpy>=1.4.5",
     "ipykernel>=7.1.0",
     "lightning>=2.5.5",

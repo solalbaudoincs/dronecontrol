@@ -3,10 +3,12 @@
 import torch
 import pytorch_lightning as pl
 from pathlib import Path
+import numpy as np
 
 
 from dronecontrol.models.gru_module import GRU
-from dronecontrol.commande.optimizer import Optimizer
+from dronecontrol.commande.MPC_torch import MPCTorch
+from dronecontrol.commande.MPC_cvxpy import MPCCVXPY
 from dronecontrol.simulink.simulator import DroneSimulator
 
 
@@ -17,8 +19,8 @@ def main():
     device = "cpu"
     g = 9.81
     dt = 0.1
-    horizon = 20
-    nb_steps = 10  # Number of optimization steps
+    horizon = 10
+    nb_steps = 30  # Number of optimization steps
     hidden_dim = 8
     num_layers = 1
     dropout = 0.0
@@ -41,16 +43,11 @@ def main():
     # Set model to evaluation mode
     
     # Initialize optimizer
-    optimizer = Optimizer(
-        lr=1.0,
+    optimizer = MPCTorch(
         accel_model=gru_model,
         dt=dt,
-        max_iter=40,
         horizon=horizon,
         nb_steps=nb_steps,
-        Q_tensor=torch.eye(horizon),
-        R_tensor=torch.eye(horizon),
-        max_epochs=80,
         use_ekf=False  # Set to True to use EKF
     )
     
@@ -59,7 +56,7 @@ def main():
     v0 = torch.tensor([0.0])  # Initial velocity
     
     # Reference trajectory (hover at initial position)
-    x_ref = torch.tensor([5.0])
+    x_ref = torch.linspace(x0.item(), 5, nb_steps)
     
     print("=" * 60)
     print("DRONE CONTROL OPTIMIZATION WITH GRU MODEL")
@@ -72,10 +69,10 @@ def main():
     
     # Run optimization
     print("\nStarting optimization...")
-    u_opt = optimizer.optimize(
+    u_opt, _ = optimizer.solve(
         x_ref=x_ref,
-        x0=x0,
-        v0=v0,
+        x0=x0.item(),
+        v0=v0.item(),
         verbose=True
     )
     

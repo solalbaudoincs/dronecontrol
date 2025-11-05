@@ -22,7 +22,7 @@ def main():
     lr = 1e-2
     val_split = 0.2
     test_split = 0.1
-    hidden_dim = 16
+    hidden_dim = 8
     num_layers = 1
     dropout = 0.0
     log_dir = "logs"
@@ -62,7 +62,7 @@ def main():
     # ==================== MODEL ====================
     print("[4/4] Initializing GRU model...")
     
-    model = LSTM(
+    model = GRU(
         input_dim=1,
         output_dim=1,
         hidden_dim=hidden_dim,
