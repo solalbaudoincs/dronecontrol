@@ -6,10 +6,7 @@ import numpy as np
 from dronecontrol.models.base_module import BaseModel
 from .neural_ekf import NeuralEKF
 
-try :
-    from dronecontrol.simulink.simulator import DroneSimulator
-except ImportError:
-    DroneSimulator = None
+from dronecontrol.simulink.simulator import DroneSimulator
 
 
 ArrayLike = Union[torch.Tensor, np.ndarray]
