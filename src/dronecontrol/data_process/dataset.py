@@ -18,9 +18,12 @@ class AVDataset(Dataset):
     def __len__(self) -> int:
         return len(self.input)
     
-    def __getitem__(self, idx: int):
-        
-        input_tensor = torch.tensor(self.input[idx], dtype=torch.float32).unsqueeze(-1)
-        target_tensor = torch.tensor(self.target[idx], dtype=torch.float32).unsqueeze(-1)
+    def __getitem__(self, idx: int):  
+        if torch.tensor(self.input[idx], dtype=torch.float32).ndim == 1:
+            input_tensor = torch.tensor(self.input[idx], dtype=torch.float32).unsqueeze(-1)
+            target_tensor = torch.tensor(self.target[idx], dtype=torch.float32).unsqueeze(-1)
+        else:
+            input_tensor = torch.tensor(self.input[idx], dtype=torch.float32)
+            target_tensor = torch.tensor(self.target[idx], dtype=torch.float32)
 
         return input_tensor, target_tensor
