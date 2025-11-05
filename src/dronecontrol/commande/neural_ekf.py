@@ -1,14 +1,25 @@
 import numpy as np
 import torch
+from typing import Union
 
+from dronecontrol.models.base_module import BaseModel
+
+ArrayLike = Union[np.ndarray, torch.Tensor]
 
 class NeuralEKF:
     """
     Extended Kalman Filter wrapper for a neural network dynamics model.
     """
 
-    def __init__(self, model, hidden_dim: int, input_dim: int, 
-                 Q_scale: float = 1e-3, R_scale: float = 1e-2):
+    def __init__(
+            self, 
+            model: BaseModel, 
+            hidden_dim: int, 
+            input_dim: int, 
+            Q_weight: float = 1.0, 
+            R_weight: float = 1.0
+            ):
+        
         self.model = model
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
@@ -16,8 +27,8 @@ class NeuralEKF:
         # État de l'EKF (sans filterpy)
         self.x = np.zeros(hidden_dim)           # État caché estimé
         self.P = np.eye(hidden_dim) * 0.1       # Covariance de l'état
-        self.Q = np.eye(hidden_dim) * Q_scale   # Bruit de processus
-        self.R = np.eye(input_dim) * R_scale     # Bruit de mesure
+        self.Q = np.eye(hidden_dim) * Q_weight  # Bruit de processus
+        self.R = np.array(input_dim) * R_weight               # Bruit de mesure
 
     def state_transition(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """State transition: h_k+1 = f(h_k, u_k) using the neural network."""
@@ -38,37 +49,38 @@ class NeuralEKF:
             a_hat, _ = self.model(u_t, h_t)
         
         return a_hat.squeeze(0).numpy()
+    
+    def compute_H(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
 
-    def compute_jacobian_wrt_hidden(self, func_type: str, u: np.ndarray, h: np.ndarray) -> np.ndarray:
+        """
+        Compute Jacobian of measurement function with respect to hidden state h.
+        """
+        h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True).unsqueeze(0)
+        u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
+        
+        def func(h):
+            a_hat, _ = self.model(u_t, h)
+            return a_hat
+        
+        H = torch.autograd.functional.jacobian(func, h_t)
+        
+        return H.squeeze(0).squeeze(1).numpy()
+    
+
+    def compute_F(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """
         Compute Jacobian of func with respect to hidden state h.
         """
         h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True).unsqueeze(0)
         u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
         
-        # Forward pass
-        a_hat, h_next = self.model(u_t, h_t)
+        def func(h):
+            _, h_next = self.model(u_t, h)
+            return h_next
         
-        # Select which output to differentiate
-        if func_type == 'state':
-            output = h_next
-        elif func_type == 'measurement':
-            output = a_hat
-        else:
-            raise ValueError(f"Unknown func_type: {func_type}")
+        F = torch.autograd.functional.jacobian(func, h_t)
         
-        # Compute Jacobian
-        jacobian = []
-        output_flat = output.squeeze(0)
-        
-        for i in range(output_flat.shape[0]):
-            if h_t.grad is not None:
-                h_t.grad.zero_()
-            
-            output_flat[i].backward(retain_graph=True)
-            jacobian.append(h_t.grad.squeeze(0).clone().numpy())
-        
-        return np.array(jacobian)
+        return F.squeeze(0).squeeze(1).numpy()
 
     def step(self, u: np.ndarray, hk: np.ndarray, a_measured: np.ndarray) -> np.ndarray:
         """
@@ -79,12 +91,12 @@ class NeuralEKF:
         self.x = hk
         
         # ===== PREDICT STEP =====
-        F = self.compute_jacobian_wrt_hidden('state', u, self.x)
+        F = self.compute_F(u, self.x)
         x_pred = self.state_transition(u, self.x)
         P_pred = F @ self.P @ F.T + self.Q
         
         # ===== UPDATE STEP =====
-        H = self.compute_jacobian_wrt_hidden('measurement', u, x_pred)
+        H = self.compute_H(u, x_pred)
         z_pred = self.measurement_function(u, x_pred)
         
         # Innovation

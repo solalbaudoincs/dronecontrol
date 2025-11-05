@@ -3,12 +3,11 @@ import numpy as np
 import torch
 from typing import Optional, Tuple
 
-from dronecontrol.commande.neural_ekf import NeuralEKF
-from dronecontrol.simulink.simulator import DroneSimulator
+from dronecontrol.commande.base_mpc import MPC, ArrayLike
 from dronecontrol.models.base_module import BaseModel
 
 
-class MPCCVXPY:
+class MPCCVXPY(MPC):
     """
     Model Predictive Control using CVXPY for convex optimization.
     
@@ -25,11 +24,12 @@ class MPCCVXPY:
         dt: float,
         horizon: int,
         nb_steps: int,
-        Q_weight: float = 0.1,      # Control effort weight
-        R_weight: float = 10.0,     # Tracking error weight
+        Q: ArrayLike,               # Control effort weight matrix
+        R: ArrayLike,               # Tracking error weight matrix
         u_min: float = -5.0,
         u_max: float = 5.0,
         use_ekf: bool = False,
+        use_simulink: bool = False,
         linearization_iters: int = 3  # Number of SQP iterations
     ):
         """
@@ -40,28 +40,36 @@ class MPCCVXPY:
             dt: Time step
             horizon: Prediction horizon (number of future steps)
             nb_steps: Total number of control steps to execute
-            Q_weight: Weight on control effort (higher = smoother control)
-            R_weight: Weight on tracking error (higher = better tracking)
+            Q: Weight matrix on control effort
+            R: Weight matrix on tracking error
             u_min, u_max: Control input bounds
             use_ekf: Whether to use EKF for state estimation
+            use_simulink: Whether to use Simulink for simulation
             linearization_iters: Number of SQP iterations for better accuracy
         """
-        self.accel_model = accel_model
-        self.dt = dt
-        self.horizon = horizon
-        self.nb_steps = nb_steps
-        self.Q_weight = Q_weight
-        self.R_weight = R_weight
-        self.u_min = u_min
-        self.u_max = u_max
-        self.use_ekf = use_ekf
+        # Call parent constructor
+        super().__init__(
+            accel_model=accel_model,
+            dt=dt,
+            horizon=horizon,
+            nb_steps=nb_steps,
+            Q=Q,
+            R=R,
+            u_min=u_min,
+            u_max=u_max,
+            use_ekf=use_ekf,
+            use_simulink=use_simulink
+        )
+        
+        # Store matrices for cost computation
+        self.Q_matrix = np.array(Q, dtype=np.float32) 
+        self.R_matrix = np.array(R, dtype=np.float32) 
         self.linearization_iters = linearization_iters
-        self.hidden_dim = accel_model.hidden_dim
 
     def linearize_model(
         self,
         u_nominal: np.ndarray,
-        hidden: np.ndarray
+        hidden: torch.Tensor
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Linearize neural network dynamics around nominal control sequence.
@@ -74,7 +82,11 @@ class MPCCVXPY:
         """
         # Convert to torch
         u_torch = torch.tensor(u_nominal, dtype=torch.float32).reshape(1, -1, 1)
-        h_torch = torch.tensor(hidden, dtype=torch.float32).reshape(1, 1, -1)
+        h_torch = hidden.detach() if isinstance(hidden, torch.Tensor) else torch.tensor(hidden, dtype=torch.float32)
+        
+        # Ensure correct shape [num_layers, 1, hidden_dim]
+        if h_torch.dim() == 2:
+            h_torch = h_torch.unsqueeze(1)
         
         # Nominal trajectory
         with torch.no_grad():
@@ -83,9 +95,10 @@ class MPCCVXPY:
         
         # Compute sensitivity using finite differences
         epsilon = 1e-4
-        B = np.zeros(self.horizon)
+        horizon = len(u_nominal)
+        B = np.zeros(horizon)
         
-        for i in range(self.horizon):
+        for i in range(horizon):
             u_pert = u_nominal.copy()
             u_pert[i] += epsilon
             u_pert_torch = torch.tensor(u_pert, dtype=torch.float32).reshape(1, -1, 1)
@@ -118,10 +131,11 @@ class MPCCVXPY:
         Returns:
             u_optimal: Optimal control sequence [horizon], or None if infeasible
         """
+        horizon = len(x_ref)
         # Define optimization variables
-        u = cp.Variable(self.horizon)
-        x = cp.Variable(self.horizon)
-        v = cp.Variable(self.horizon)
+        u = cp.Variable(horizon)
+        x = cp.Variable(horizon)
+        v = cp.Variable(horizon)
         
         # Constraints
         constraints = []
@@ -131,7 +145,7 @@ class MPCCVXPY:
         constraints.append(v[0] == v0)
         
         # System dynamics with linearized model
-        for t in range(self.horizon - 1):
+        for t in range(horizon - 1):
             # Linearized acceleration: a[t] = a_nominal[t] + B[t]·u[t]
             a_t = a_nominal[t] + B[t] * u[t]
             
@@ -145,9 +159,16 @@ class MPCCVXPY:
         constraints.append(u >= self.u_min)
         constraints.append(u <= self.u_max)
         
-        # Objective function
-        tracking_cost = self.R_weight * cp.sum_squares(x - x_ref)
-        control_cost = self.Q_weight * cp.sum_squares(u)
+        # Objective function using matrix quadratic forms
+        # ||x - x_ref||_R^2 = (x - x_ref)^T R (x - x_ref)
+        error = x - x_ref
+        R_mat = self.R_matrix[:horizon, :horizon]
+        tracking_cost = cp.quad_form(error, R_mat)
+        
+        # ||u||_Q^2 = u^T Q u
+        Q_mat = self.Q_matrix[:horizon, :horizon]
+        control_cost = cp.quad_form(u, Q_mat)
+        
         objective = cp.Minimize(tracking_cost + control_cost)
         
         # Solve
@@ -163,40 +184,46 @@ class MPCCVXPY:
                 return None
                 
         except Exception as e:
-            print(f"❌ Solver error: {e}")
+            print(f"Solver error: {e}")
             return None
 
-    def step(
+    def optimize_control(
         self,
-        x_ref: np.ndarray,
-        x0: float,
-        v0: float,
-        hidden: np.ndarray,
+        x_ref: torch.Tensor,
+        u: torch.Tensor,
+        hk: torch.Tensor,
+        xk: float,
+        vk: float,
         verbose: bool = False
     ) -> float:
         """
-        Compute optimal control for one MPC step using Sequential Quadratic Programming.
-        
+        Optimize control sequence over the horizon using CVXPY with Sequential Quadratic Programming.
+
         Args:
-            x_ref: Reference trajectory [horizon]
-            x0: Current position
-            v0: Current velocity
-            hidden: Current hidden state [hidden_dim]
-            verbose: Print optimization info
-            
+            x_ref: Reference trajectory [horizon] (torch.Tensor)
+            u: Initial control sequence [1, horizon, 1] (not used, CVXPY initializes internally)
+            hk: Initial hidden state [num_layers, 1, hidden_dim]
+            xk: Initial position
+            vk: Initial velocity
+            verbose: Whether to print optimization progress
+
         Returns:
-            u_optimal: Optimal control for first step (scalar)
+            u_optimal: Optimized control for first step
         """
+        # Convert torch tensors to numpy
+        x_ref_np = x_ref.detach().cpu().numpy()
+        horizon = len(x_ref_np)
+        
         # Initialize with zero control
-        u_current = np.zeros(self.horizon)
+        u_current = np.zeros(horizon)
         
         # Sequential Quadratic Programming (SQP-like approach)
         for iteration in range(self.linearization_iters):
             # 1. Linearize around current control
-            a_nominal, B = self.linearize_model(u_current, hidden)
+            a_nominal, B = self.linearize_model(u_current, hk)
             
             # 2. Solve QP
-            u_new = self.solve_qp(x_ref, x0, v0, a_nominal, B)
+            u_new = self.solve_qp(x_ref_np, xk, vk, a_nominal, B)
             
             if u_new is None:
                 print(f"⚠️  Optimization failed at iteration {iteration}")
@@ -205,127 +232,32 @@ class MPCCVXPY:
             # 3. Update
             u_current = u_new
             
-            if verbose:
+            # Log first iteration, last iteration, or all if verbose
+            should_log = (iteration == 0 or iteration == self.linearization_iters - 1 or verbose)
+            
+            if should_log:
                 # Compute cost for debugging
                 u_torch = torch.tensor(u_current, dtype=torch.float32).reshape(1, -1, 1)
-                h_torch = torch.tensor(hidden, dtype=torch.float32).reshape(1, 1, -1)
                 with torch.no_grad():
-                    a_torch, _ = self.accel_model(u_torch, h_torch)
+                    a_torch, _ = self.accel_model(u_torch, hk)
                     a = a_torch.squeeze().numpy()
                 
                 # Simulate trajectory
-                x_pred = np.zeros(self.horizon)
-                v_pred = np.zeros(self.horizon)
-                x_pred[0], v_pred[0] = x0, v0
+                x_pred = np.zeros(horizon)
+                v_pred = np.zeros(horizon)
+                x_pred[0], v_pred[0] = xk, vk
                 
-                for t in range(self.horizon - 1):
+                for t in range(horizon - 1):
                     v_pred[t+1] = v_pred[t] + a[t] * self.dt
                     x_pred[t+1] = x_pred[t] + v_pred[t] * self.dt + 0.5 * a[t] * self.dt**2
                 
-                tracking_error = np.mean((x_pred - x_ref)**2)
+                tracking_error = np.mean((x_pred - x_ref_np)**2)
                 control_effort = np.mean(u_current**2)
                 
-                print(f"  Iter {iteration}: u[0]={u_current[0]:.4f}, "
+                print(f"  Iter {iteration+1:3d}/{self.linearization_iters}: u[0]={u_current[0]:.4f}, "
                       f"tracking_err={tracking_error:.4f}, control_effort={control_effort:.4f}")
         
         return float(u_current[0])
-
-    def solve(
-        self,
-        x_ref: np.ndarray,
-        x0: float,
-        v0: float,
-        verbose: bool = True
-    ) -> np.ndarray:
-        """
-        Execute full MPC control loop.
-        
-        Args:
-            x_ref: Reference trajectory for the entire horizon [nb_steps]
-            x0: Initial position
-            v0: Initial velocity
-            verbose: Print progress
-            
-        Returns:
-            u_history: Applied control sequence [nb_steps]
-        """
-        # Initialize
-        u_history = np.zeros(self.nb_steps)
-        x_current = x0
-        v_current = v0
-        h_current = np.zeros(self.hidden_dim)
-        
-        # Setup simulator and EKF
-        simulator = DroneSimulator()
-        
-        if self.use_ekf:
-            ekf = NeuralEKF(
-                model=self.accel_model,
-                hidden_dim=self.hidden_dim,
-                meas_dim=1
-            )
-        
-        # MPC loop
-        for step in range(self.nb_steps):
-            if verbose:
-                print(f"\n{'='*60}")
-                print(f"Step {step+1}/{self.nb_steps}: x={x_current:.3f}, v={v_current:.3f}")
-            
-            # Extract reference for current horizon
-            horizon_end = min(step + self.horizon, len(x_ref))
-            x_ref_horizon = x_ref[step:horizon_end]
-            
-            # Pad if necessary
-            if len(x_ref_horizon) < self.horizon:
-                x_ref_horizon = np.pad(
-                    x_ref_horizon,
-                    (0, self.horizon - len(x_ref_horizon)),
-                    mode='edge'
-                )
-            
-            # Solve MPC
-            u_optimal = self.step(
-                x_ref=x_ref_horizon,
-                x0=x_current,
-                v0=v_current,
-                hidden=h_current,
-                verbose=verbose
-            )
-            
-            u_history[step] = u_optimal
-            
-            if verbose:
-                print(f"→ Optimal control: u={u_optimal:.4f}")
-            
-            # Apply control to simulator (4 motors with same input)
-            a_measured = simulator.accel(control_input=[u_optimal] * 4)[-1]
-            v_current = simulator.vel[-1]
-            x_current = simulator.pos[-1]
-            
-            if verbose:
-                print(f"→ System response: a={a_measured:.4f}, x_new={x_current:.3f}")
-            
-            # Update hidden state
-            if self.use_ekf:
-                h_current = ekf.step(
-                    u=np.array([u_optimal]),
-                    a_measured=np.array([a_measured]),
-                    hk=h_current
-                )
-            else:
-                # Open-loop: propagate hidden state through model
-                u_torch = torch.tensor([[u_optimal]], dtype=torch.float32).reshape(1, 1, 1)
-                h_torch = torch.tensor(h_current, dtype=torch.float32).reshape(1, 1, -1)
-                
-                with torch.no_grad():
-                    _, h_next = self.accel_model(u_torch, h_torch)
-                    h_current = h_next.squeeze().cpu().numpy()
-        
-        if verbose:
-            print(f"\n{'='*60}")
-            print(f"✓ MPC completed. Final position: {x_current:.3f}")
-        
-        return u_history
 
 
 # Example usage

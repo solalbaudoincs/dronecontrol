@@ -25,7 +25,8 @@ class MPCTorch(MPC):
         u_min: float = -5.0,
         u_max: float = 5.0,
         use_ekf: bool = False,
-        use_simulink: bool = False
+        use_simulink: bool = False,
+        optimizer_type: str = "lbfgs"  # "adam" or "lbfgs"
     ):
         """
         Initialize MPC controller.
@@ -37,11 +38,12 @@ class MPCTorch(MPC):
             nb_steps: Total number of control steps
             Q: Weight matrix on control effort
             R: Weight matrix on tracking error
-            lr: Learning rate for Adam optimizer
+            lr: Learning rate for Adam optimizer (not used for LBFGS)
             max_epochs: Number of optimization iterations per step
             u_min, u_max: Control bounds
             use_ekf: Whether to use EKF for state estimation
             use_simulink: Whether to use Simulink for simulation
+            optimizer_type: Type of optimizer ("adam" or "lbfgs")
         """
         # Call parent constructor
         super().__init__(
@@ -51,14 +53,15 @@ class MPCTorch(MPC):
             nb_steps=nb_steps,
             Q=Q,
             R=R,
-            lr=lr,
-            max_epochs=max_epochs,
             u_min=u_min,
             u_max=u_max,
             use_ekf=use_ekf,
             use_simulink=use_simulink
         )
         
+        self.lr = lr
+        self.max_epochs = max_epochs
+        self.optimizer_type = optimizer_type.lower()
         # Store scalar weights for loss computation
         self.Q = torch.tensor(Q, dtype=torch.float32)
         self.R = torch.tensor(R, dtype=torch.float32)
@@ -94,49 +97,98 @@ class MPCTorch(MPC):
         # Initialize control sequence
         u = torch.zeros(1, horizon, 1, requires_grad=True)
 
-        # Optimizer
-        optimizer = torch.optim.Adam([u], lr=self.lr)
-        
-        # Optimization loop
-        for epoch in range(self.max_epochs):
-            optimizer.zero_grad()
+        # Select optimizer
+        if self.optimizer_type == "lbfgs":
+            optimizer = torch.optim.LBFGS([u], lr=self.lr, max_iter=self.max_epochs, line_search_fn="strong_wolfe")
             
-            # Compute trajectory and loss
-            x_pred, _, _ = self._compute_trajectory_wrt_NN(
-                u, xk, vk, hk
-            )
+            # LBFGS requires closure
+            def closure():
+                optimizer.zero_grad()
+                
+                # Compute trajectory and loss
+                x_pred, _, _ = self._compute_trajectory_wrt_NN(u, xk, vk, hk)
+                
+                # Loss: tracking + control effort
+                error = x_pred - x_ref
+                R = self.R[:horizon, :horizon]
+                tracking_loss = torch.dot(error, R @ error)
+                
+                u_flat = u.squeeze(0).squeeze(-1)
+                Q = self.Q[:horizon, :horizon]
+                control_loss = torch.dot(u_flat, Q @ u_flat)
+                
+                loss = tracking_loss + control_loss
+                loss.backward()
+                
+                return loss
             
-            # Loss: tracking + control effort
-            # ||x - x_ref||_R^2 = (x - x_ref)^T R (x - x_ref)
-            error = x_pred - x_ref
-            R = self.R[:horizon, :horizon]
-            tracking_loss = torch.dot(error, R @ error)
-            
-            # ||u||_Q^2 = u^T Q u
-            u_flat = u.squeeze(0).squeeze(-1)  # [horizon]
-            Q = self.Q[:horizon, :horizon]
-            control_loss = torch.dot(u_flat, Q @ u_flat)
-
-            loss = tracking_loss + control_loss
-            
-            # Backward and step
-            loss.backward()
-            optimizer.step()
+            # LBFGS optimization - single step, internally handles max_iter
+            optimizer.step(closure)
             
             # Project to bounds
             with torch.no_grad():
                 u.data = self.project_control(u.data)
             
+            # Log final result
+            with torch.no_grad():
+                x_pred, _, _ = self._compute_trajectory_wrt_NN(u, xk, vk, hk)
+                error = x_pred - x_ref
+                R = self.R[:horizon, :horizon]
+                tracking_loss = torch.dot(error, R @ error)
+                
+                u_flat = u.squeeze(0).squeeze(-1)
+                Q = self.Q[:horizon, :horizon]
+                control_loss = torch.dot(u_flat, Q @ u_flat)
+                
+                total_loss = tracking_loss + control_loss
+                
+            print(f"    LBFGS: loss={total_loss.item():8.4f} "
+                  f"(tracking={tracking_loss.item():7.3f}, "
+                  f"control={control_loss.item():7.3f})")
+        
+        else:  # Adam optimizer
+            optimizer = torch.optim.Adam([u], lr=self.lr)
             
-            # Log first epoch, last epoch, or every 10 epochs if verbose
-            should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
-                         (verbose and (epoch + 1) % 10 == 0))
-            
-            if should_log:
-                print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
-                      f"loss={loss.item():8.4f} "
-                      f"(tracking={tracking_loss.item():7.3f}, "
-                      f"control={control_loss.item():7.3f})")
+            # Optimization loop
+            for epoch in range(self.max_epochs):
+                optimizer.zero_grad()
+                
+                # Compute trajectory and loss
+                x_pred, _, _ = self._compute_trajectory_wrt_NN(
+                    u, xk, vk, hk
+                )
+                
+                # Loss: tracking + control effort
+                # ||x - x_ref||_R^2 = (x - x_ref)^T R (x - x_ref)
+                error = x_pred - x_ref
+                R = self.R[:horizon, :horizon]
+                tracking_loss = torch.dot(error, R @ error)
+                
+                # ||u||_Q^2 = u^T Q u
+                u_flat = u.squeeze(0).squeeze(-1)  # [horizon]
+                Q = self.Q[:horizon, :horizon]
+                control_loss = torch.dot(u_flat, Q @ u_flat)
+
+                loss = tracking_loss + control_loss
+                
+                # Backward and step
+                loss.backward()
+                optimizer.step()
+                
+                # Project to bounds
+                with torch.no_grad():
+                    u.data = self.project_control(u.data)
+                
+                
+                # Log first epoch, last epoch, or every 10 epochs if verbose
+                should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
+                             (verbose and (epoch + 1) % 10 == 0))
+                
+                if should_log:
+                    print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
+                          f"loss={loss.item():8.4f} "
+                          f"(tracking={tracking_loss.item():7.3f}, "
+                          f"control={control_loss.item():7.3f})")
         
         # Extract optimal control
         u_optimal = u.detach()[0, 0, 0].item()
