@@ -30,21 +30,21 @@ def main():
     
     # Load trained GRU model (assuming checkpoint exists)
     # For now, create untrained model - in practice, load from checkpoint
-    # gru_model = GRU(
-    #     input_dim=1,
-    #     output_dim=1,
-    #     hidden_dim=hidden_dim,
-    #     num_layers=num_layers,
-    #     dropout=dropout,
-    #     lr=1e-2
-    # )
+    gru_model = GRU(
+        input_dim=1,
+        output_dim=1,
+        hidden_dim=hidden_dim,
+        num_layers=num_layers,
+        dropout=dropout,
+        lr=1e-2
+    )
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
+    #gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
     
     # Set model to evaluation mode
-    gru_model.to(device)
+    #gru_model.to(device)
     # Initialize optimizer
     optimizer = MPCTorch(
         accel_model=gru_model,

@@ -1,44 +1,8 @@
 import torch
-import torch.nn as nn
-import numpy as np
-from dataclasses import dataclass
-from typing import Optional, Union
 
-<<<<<<< HEAD
-from dronecontrol.commande.loss import TrajectoryLoss
-from dronecontrol.commande.neural_ekf import NeuralEKF
-=======
 from dronecontrol.commande.base_mpc import MPC, ArrayLike
->>>>>>> 73a6d4f (fixed torch mpc works great)
 from dronecontrol.models.base_module import BaseModel
 
-try:
-    from dronecontrol.simulink.simulator import DroneSimulator
-except ImportError:
-    print("Simulink simulator not available.")
-
-<<<<<<< HEAD
-    
-@dataclass
-class MPCState:
-    """Container for MPC state at each time step."""
-    step: int
-    position: float
-    velocity: float
-    acceleration: float
-    control: float
-    hidden_state: np.ndarray
-    tracking_error: float
-    
-    def __str__(self):
-        return (f"Step {self.step:3d} | "
-                f"x={self.position:7.3f} | "
-                f"v={self.velocity:7.3f} | "
-                f"a={self.acceleration:7.3f} | "
-                f"u={self.control:7.3f} | "
-                f"err={self.tracking_error:7.3f}")
-=======
->>>>>>> 73a6d4f (fixed torch mpc works great)
 
 
 class MPCTorch(MPC):
