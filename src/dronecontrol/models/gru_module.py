@@ -27,6 +27,7 @@ class GRU(BaseModel):
             output_dim, 
             hidden_dim, 
             lr,
+            num_layers=num_layers,
             scheduler_type=scheduler_type,
             scheduler_kwargs=scheduler_kwargs
             )
@@ -51,7 +52,12 @@ class GRU(BaseModel):
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        
 
+        # x = x.permute(0, 2, 1)          # [batch, input_dim, seq_len]
+        # x = self.batchnorm(x)
+        # x = x.permute(0, 2, 1)      # [batch, seq_len, input_dim]
+        
         if hidden is not None:
             out, h = self.gru(x, hidden)
         else:
