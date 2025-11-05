@@ -18,62 +18,54 @@ def main():
     device = "cpu"
     g = 9.81
     dt = 0.1
-    horizon = 10
-    nb_steps = 30  # Number of optimization steps
+    horizon = 30
+    nb_steps = 300  # Number of optimization steps
     hidden_dim = 8
     num_layers = 1
     dropout = 0.0
     
     # Load trained GRU model (assuming checkpoint exists)
     # For now, create untrained model - in practice, load from checkpoint
-    gru_model = GRU(
-        input_dim=1,
-        output_dim=1,
-        hidden_dim=hidden_dim,
-        num_layers=num_layers,
-        dropout=dropout,
-        lr=1e-2
-    )
+    # gru_model = GRU(
+    #     input_dim=1,
+    #     output_dim=1,
+    #     hidden_dim=hidden_dim,
+    #     num_layers=num_layers,
+    #     dropout=dropout,
+    #     lr=1e-2
+    # )
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    #gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
+    gru_model = GRU.load_from_checkpoint(r"models\accel_vs_voltage\gru\gru-nobatchnorm-val_loss=0.03.ckpt")
     
     # Set model to evaluation mode
     #gru_model.to(device)
     # Initialize optimizer
-    # optimizer = MPCTorch(
-    #     accel_model=gru_model,
-    #     dt=dt,
-    #     Q=np.eye(horizon) * 0.1,  # Control effort weight
-    #     R=np.eye(horizon) * 1.0,  # Tracking error weight
-    #     lr=0.05,
-    #     max_epochs=100,
-    #     horizon=horizon,
-    #     nb_steps=nb_steps,
-    #     use_ekf=True,  # Set to True to use EKF
-    #     use_simulink=True,
-    #     optimizer_type="lbfgs"
-    # )
 
-    optimizer = MPCCVXPY(
+    optimizer = MPCTorch(
         accel_model=gru_model,
         dt=dt,
-        Q=np.eye(horizon) * 0.1,  # Control effort weight
+        Q=np.eye(horizon) * 10,  # Control effort weight
         R=np.eye(horizon) * 1.0,  # Tracking error weight
+        lr=0.1,
+        max_epochs=100,
         horizon=horizon,
         nb_steps=nb_steps,
         use_ekf=True,  # Set to True to use EKF
         use_simulink=True,
-        linearization_iters=5
+        optimizer_type="adam",
     )
+
     
     # Initial conditions
     x0 = 1.0  # Initial position
     v0 = 0.0  # Initial velocity
     
     # Reference trajectory (hover at initial position)
-    x_ref = torch.linspace(x0, 5, nb_steps)
+    x_ref = torch.linspace(0, 5, nb_steps//2).tolist() + torch.linspace(5, 5, nb_steps//2).tolist()
+    x_ref = torch.tensor(x_ref, dtype=torch.float32)
+
 
     print("=" * 60)
     print("DRONE CONTROL OPTIMIZATION WITH GRU MODEL")
