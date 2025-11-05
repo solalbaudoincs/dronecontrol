@@ -39,8 +39,6 @@ class GRU(BaseModel):
             "dropout": dropout,
         }) 
 
-        self.batchnorm = nn.BatchNorm1d(input_dim)
-
         self.gru = nn.GRU(
             input_size=input_dim,
             hidden_size=hidden_dim,
@@ -50,7 +48,6 @@ class GRU(BaseModel):
             dropout=dropout if num_layers > 1 else 0.0,
         )
 
-        self.batchnorm = nn.BatchNorm1d(input_dim, affine=False)
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
