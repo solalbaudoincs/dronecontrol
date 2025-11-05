@@ -42,7 +42,8 @@ class BaseModel(pl.LightningModule, ABC):
 
     def training_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch
-        y_hat, _ = self(x)
+        y_hat, _  = self(x)
+        print(f"y_hat shape: {y_hat.shape}, y shape: {y.shape}")
         loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :])# we dont take into account the first timestep, as we cant predict without prior info
         self.log("train_loss", loss, prog_bar=True)
         return loss
@@ -57,8 +58,10 @@ class BaseModel(pl.LightningModule, ABC):
     def test_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch
         y_hat, _ = self(x)
+        y_hat, _ = self(x)
         loss = self.mse_loss(y_hat[:, 1:, :], y[:, 1:, :]) # we dont take into account the first timestep
-        self.log("test_loss", loss)        
+        self.log("test_loss", loss)
+        
         # Generate and save plots
         fig = self.plot_predictions(y[0, :1, :].squeeze(-1), y_hat[0, :1, :].squeeze(-1))
         log_dir = Path("predictions_plots")

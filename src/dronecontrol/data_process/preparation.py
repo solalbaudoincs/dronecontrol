@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple
 
 import pytorch_lightning as pl
 
-from .data_cleaning import AVDataCleaner
+from .data_cleaning import AVDataCleaner, FullMotorDataCleaner
 from .data_loader import AVDataLoader
 from .data_augmentation import DataAugmenter, NoOpAugmenter
 
@@ -13,6 +13,10 @@ from .data_augmentation import DataAugmenter, NoOpAugmenter
 SCENARIOS: Dict[str, Dict[str, Any]] = {
     "accel_vs_voltage": {
         "data_cleaner": AVDataCleaner,
+        "data_loader": AVDataLoader,
+    },
+    "control_4_motors" : {
+        "data_cleaner": FullMotorDataCleaner,
         "data_loader": AVDataLoader,
     }
 }

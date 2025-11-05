@@ -1,4 +1,64 @@
 scenarios:
+  - name: "control_4_motors"
+    data:
+      input_file: "data/control_4_motors/_inputs.csv"
+      states_file: "data/control_4_motors/_states.csv"
+      derivatives_file: "data/control_4_motors/_derivatives.csv"
+      output_file: "data/control_4_motors/out.csv"
+      
+      #processed_file: "data/processed/accel_vs_voltage.npz"
+      input_dim: 4
+      states_dim: 12
+      derivatives_dim : 12
+      output_dim : 12
+      #use_simulink: false
+      #simulink_model: "UAV_model.slx"
+      #extra_simulink_samples: 0
+    preprocessing:
+      outlier_method: "iqr"  # options: iqr, zscore
+      normalize: true
+      normalization_scope: "per_feature"  # options: per_feature, global
+      fill_method: "linear"  # options: linear, cubic, nearest
+    augmentation:
+      noise_std: 0.01
+      window_size: 50
+      window_stride: 10
+    training:
+      models: ["gru"]
+      epochs: 1000
+      batch_size: 128
+      lr: 0.1
+      val_split: 0.2
+      test_split: 0.1
+      seed: 42
+      early_stopping_patience: 10
+      model_params:
+        gru:
+          hidden_dim: 16
+          num_layers: 2
+          dropout: 0.0
+        rnn:
+          hidden_dim: 16
+          num_layers: 1
+          dropout: 0.0
+      scheduler:
+        type: "ReduceLROnPlateau"
+        params:
+          patience: 10
+          factor: 0.5
+          min_lr: 0.000001
+    control:
+      methods: ["mpc"]
+      horizon: 10
+      rl_algorithm: "ppo"  # options: ppo, ddpg
+      mpc_weight_tracking: 1.0
+      mpc_weight_smoothness: 0.1
+      mpc_weight_effort: 0.01
+    reporting:
+      generate_pdf: true
+      include_plots: true
+      metrics_file: "results/control_4_motors/metrics.json"
+
   - name: "accel_vs_voltage"
     data:
       input_file: "data/accel_vs_voltage/in.csv"
