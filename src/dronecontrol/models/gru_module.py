@@ -27,6 +27,7 @@ class GRU(BaseModel):
             output_dim, 
             hidden_dim, 
             lr,
+            num_layers=num_layers,
             scheduler_type=scheduler_type,
             scheduler_kwargs=scheduler_kwargs
             )
