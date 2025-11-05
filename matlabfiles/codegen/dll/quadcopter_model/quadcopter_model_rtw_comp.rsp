@@ -1,0 +1,3 @@
+﻿-I"C:\Users\baudo\Desktop\ST DDC\dronecontrol\matlabfiles\codegen\dll\quadcopter_model"
+-I"C:\Users\baudo\Desktop\ST DDC\dronecontrol\matlabfiles"
+-I"C:\Program Files\MATLAB\R2024a\extern\include"
