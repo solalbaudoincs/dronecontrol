@@ -28,7 +28,7 @@ class AVDataCleaner(DataCleaner):
 	def calculate_energy(self, row : pd.Series) -> float:
 		return np.sum(np.square(row))
 
-	def get_clean_data(self):
+	def get_clean_data(self) -> Tuple[np.ndarray, np.ndarray]:
 
 		eps = 1e-6  # Small constant to avoid division by zero
 
