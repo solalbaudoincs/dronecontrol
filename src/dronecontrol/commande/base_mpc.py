@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, Tuple
 import torch
-from torch import nn
 import numpy as np
-from dataclasses import dataclass
-from typing import Tuple, Optional
 
 from dronecontrol.models.base_module import BaseModel
 from .neural_ekf import NeuralEKF
@@ -27,8 +24,6 @@ class MPC(ABC):
         nb_steps: int,
         Q: ArrayLike,
         R: ArrayLike,
-        lr: float,
-        max_epochs: int,
         u_min: float,
         u_max: float,
         use_ekf: bool = False,
@@ -56,8 +51,6 @@ class MPC(ABC):
         self.nb_steps = nb_steps
         self.Q = torch.tensor(Q)
         self.R = torch.tensor(R)
-        self.lr = lr
-        self.max_epochs = max_epochs
         self.u_min = u_min
         self.u_max = u_max
 
@@ -71,7 +64,7 @@ class MPC(ABC):
             self.ekf = NeuralEKF(
                 model=accel_model, 
                 hidden_dim=self.hidden_dim,
-                input_dim=1
+                input_dim=1,
                 )
         else:
             self.ekf = None
@@ -268,7 +261,7 @@ class MPC(ABC):
                         a_measured=np.array([a_current])
                     )
 
-                h_current = torch.tensor(h_new, dtype=torch.float32)
+                h_current = torch.tensor(h_new, dtype=torch.float32).unsqueeze(1)
 
             else:
 
