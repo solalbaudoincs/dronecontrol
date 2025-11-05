@@ -55,7 +55,7 @@ def main():
         max_epochs=100,
         horizon=horizon,
         nb_steps=nb_steps,
-        use_ekf=False,  # Set to True to use EKF
+        use_ekf=True,  # Set to True to use EKF
         use_simulink=False
     )
     
@@ -77,7 +77,7 @@ def main():
     
     # Run optimization
     print("\nStarting optimization...")
-    u_opt = optimizer.solve(
+    u_opt, x, v, a = optimizer.solve(
         x_ref=x_ref,
         x0=x0,
         v0=v0,
