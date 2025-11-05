@@ -197,7 +197,7 @@ class MPC(ABC):
         v0: float,
         a0: float = 0.0,
         verbose: bool = True,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Solve MPC optimization problem.
 
@@ -209,12 +209,17 @@ class MPC(ABC):
             return_history: Whether to return optimization history
 
         Returns:
-            u_opt: Optimized control trajectory [nb_steps]
-            history: Optional list of MPCState objects
+            u_history: Optimized control inputs [nb_steps]
+            x_history: Predicted positions [nb_steps]
+            v_history: Predicted velocities [nb_steps]
+            a_history: Predicted accelerations [nb_steps]
         """
         
         # Initialize
         u_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        x_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        v_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        a_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
         x_ref = torch.tensor(x_ref, dtype=torch.float32, requires_grad=False)
         
         x_current = x0
@@ -234,6 +239,9 @@ class MPC(ABC):
             )
 
             u_history[step] = u_opt
+            x_history[step] = x_current
+            v_history[step] = v_current
+            a_history[step] = a_current
             
             # Compute tracking error
             tracking_error = abs(x_current - x_ref[step]) if step < len(x_ref) else 0.0
@@ -251,7 +259,7 @@ class MPC(ABC):
             if self.use_ekf and self.ekf is not None:
                 # EKF update
                 h_new = np.zeros((self.num_layers, self.hidden_dim))
-                h_current_np = h_current.squeeze().numpy()
+                h_current_np = h_current.squeeze(1).detach().numpy()
 
                 for i in range(self.num_layers):
                     h_new[i, :] = self.ekf.step(
@@ -266,7 +274,7 @@ class MPC(ABC):
 
                 h_current = h_current.detach()
             
-        return u_history
+        return u_history, x_history, v_history, a_history
 
 
     @abstractmethod
