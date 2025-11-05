@@ -42,31 +42,31 @@ def main():
     # Set model to evaluation mode
     #gru_model.to(device)
     # Initialize optimizer
-    optimizer = MPCTorch(
-        accel_model=gru_model,
-        dt=dt,
-        Q=np.eye(horizon) * 0.1,  # Control effort weight
-        R=np.eye(horizon) * 1.0,  # Tracking error weight
-        lr=0.05,
-        max_epochs=100,
-        horizon=horizon,
-        nb_steps=nb_steps,
-        use_ekf=True,  # Set to True to use EKF
-        use_simulink=True,
-        optimizer_type="lbfgs"
-    )
-
-    # optimizer = MPCCVXPY(
+    # optimizer = MPCTorch(
     #     accel_model=gru_model,
     #     dt=dt,
     #     Q=np.eye(horizon) * 0.1,  # Control effort weight
     #     R=np.eye(horizon) * 1.0,  # Tracking error weight
+    #     lr=0.05,
+    #     max_epochs=100,
     #     horizon=horizon,
     #     nb_steps=nb_steps,
     #     use_ekf=True,  # Set to True to use EKF
     #     use_simulink=True,
-    #     linearization_iters=5
+    #     optimizer_type="lbfgs"
     # )
+
+    optimizer = MPCCVXPY(
+        accel_model=gru_model,
+        dt=dt,
+        Q=np.eye(horizon) * 0.1,  # Control effort weight
+        R=np.eye(horizon) * 1.0,  # Tracking error weight
+        horizon=horizon,
+        nb_steps=nb_steps,
+        use_ekf=True,  # Set to True to use EKF
+        use_simulink=True,
+        linearization_iters=5
+    )
     
     # Initial conditions
     x0 = 1.0  # Initial position
