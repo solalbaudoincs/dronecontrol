@@ -136,7 +136,7 @@ class MPCTorch(MPC):
                 R = self.R[:horizon, :horizon]
                 tracking_loss = torch.dot(error, R @ error)
                 
-                u_flat = u.squeeze(0).squeeze(-1)
+                u_flat = u.squeeze(0).squeeze(-1) - 0.38
                 Q = self.Q[:horizon, :horizon]
                 control_loss = torch.dot(u_flat, Q @ u_flat)
                 
@@ -180,15 +180,15 @@ class MPCTorch(MPC):
                     u.data = self.project_control(u.data)
                 
                 
-                # Log first epoch, last epoch, or every 10 epochs if verbose
-                should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
-                             (verbose and (epoch + 1) % 10 == 0))
+                # # Log first epoch, last epoch, or every 10 epochs if verbose
+                # should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
+                #              (verbose and (epoch + 1) % (self.max_epochs//20) == 0))
                 
-                if should_log:
-                    print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
-                          f"loss={loss.item():8.4f} "
-                          f"(tracking={tracking_loss.item():7.3f}, "
-                          f"control={control_loss.item():7.3f})")
+                # if should_log:
+                #     print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
+                #           f"loss={loss.item():8.4f} "
+                #           f"(tracking={tracking_loss.item():7.3f}, "
+                #           f"control={control_loss.item():7.3f})")
         
         # Extract optimal control
         u_optimal = u.detach()[0, 0, 0].item()
