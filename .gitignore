@@ -3,6 +3,8 @@ logs/
 models_checkpoints/
 predictions_plots/
 
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -10,6 +12,7 @@ __pycache__/
 
 # C extensions
 *.so
+!matlabfiles/codegen/lib/quadcopter_model/libquadcopter_model.so
 
 # Distribution / packaging
 .Python
