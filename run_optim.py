@@ -15,7 +15,7 @@ def main():
     """Run optimization with GRU model."""
     
     # Configuration
-    device = "cpu"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g = 9.81
     dt = 0.1
     horizon = 30
@@ -37,10 +37,10 @@ def main():
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    gru_model = GRU.load_from_checkpoint(r"models\accel_vs_voltage\gru\gru-nobatchnorm-val_loss=0.03.ckpt")
+    gru_model = GRU.load_from_checkpoint(r"models/accel_vs_voltage/gru/epoch=120-val_loss=0.0313.ckpt")
+    gru_model.to(device)
     
     # Set model to evaluation mode
-    #gru_model.to(device)
     # Initialize optimizer
 
     optimizer = MPCTorch(
