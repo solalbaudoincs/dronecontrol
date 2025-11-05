@@ -1,6 +1,7 @@
 """Base Lightning module definitions."""
 
 from typing import Optional
+from abc import ABC, abstractmethod
 
 import pytorch_lightning as pl
 import torch
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-class BaseModel(pl.LightningModule):
+class BaseModel(pl.LightningModule, ABC):
 
     def __init__(
             self, 
@@ -17,6 +18,7 @@ class BaseModel(pl.LightningModule):
             output_dim: int, 
             hidden_dim: int,
             lr: float, 
+            num_layers: int = 1,
             scheduler_type: Optional[str] = "ReduceLROnPlateau", 
             scheduler_kwargs: Optional[dict] = None
             ):
@@ -25,6 +27,7 @@ class BaseModel(pl.LightningModule):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
         self.save_hyperparameters()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -33,8 +36,9 @@ class BaseModel(pl.LightningModule):
         self.scheduler_kwargs = scheduler_kwargs or {}
         self.mse_loss = nn.MSELoss()
 
+    @abstractmethod
     def forward(self, u: torch.Tensor, hidden_state: Optional[torch.Tensor]) -> torch.Tensor:  # pragma: no cover - abstract
-        raise NotImplementedError
+        pass
 
     def training_step(self, batch, batch_idx):  # type: ignore[override]
         x, y = batch

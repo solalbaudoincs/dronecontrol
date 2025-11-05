@@ -30,52 +30,57 @@ def main():
     
     # Load trained GRU model (assuming checkpoint exists)
     # For now, create untrained model - in practice, load from checkpoint
-    # gru_model = GRU(
-    #     input_dim=1,
-    #     output_dim=1,
-    #     hidden_dim=hidden_dim,
-    #     num_layers=num_layers,
-    #     dropout=dropout,
-    #     lr=1e-2
-    # )
+    gru_model = GRU(
+        input_dim=1,
+        output_dim=1,
+        hidden_dim=hidden_dim,
+        num_layers=num_layers,
+        dropout=dropout,
+        lr=1e-2
+    )
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
+    #gru_model = GRU.load_from_checkpoint("models/accel_vs_voltage/gru/epoch=1999-val_loss=0.0037.ckpt")
     
     # Set model to evaluation mode
-    gru_model.to(device)
+    #gru_model.to(device)
     # Initialize optimizer
     optimizer = MPCTorch(
         accel_model=gru_model,
         dt=dt,
+        Q=np.eye(horizon) * 0.1,  # Control effort weight
+        R=np.eye(horizon) * 1.0,  # Tracking error weight
+        lr=0.05,
+        max_epochs=100,
         horizon=horizon,
         nb_steps=nb_steps,
-        use_ekf=False  # Set to True to use EKF
+        use_ekf=False,  # Set to True to use EKF
+        use_simulink=False
     )
     
     # Initial conditions
-    x0 = torch.tensor([1.0])  # Initial position
-    v0 = torch.tensor([0.0])  # Initial velocity
+    x0 = 1.0  # Initial position
+    v0 = 0.0  # Initial velocity
     
     # Reference trajectory (hover at initial position)
-    x_ref = torch.linspace(x0.item(), 5, nb_steps)
-    
+    x_ref = torch.linspace(x0, 5, nb_steps)
+
     print("=" * 60)
     print("DRONE CONTROL OPTIMIZATION WITH GRU MODEL")
     print("=" * 60)
-    print(f"Initial position: {x0.item()}")
-    print(f"Initial velocity: {v0.item()}")
+    print(f"Initial position: {x0}")
+    print(f"Initial velocity: {v0}")
     print(f"Horizon: {horizon}")
     print(f"Number of steps: {nb_steps}")
     print(f"Using EKF: {optimizer.use_ekf}")
     
     # Run optimization
     print("\nStarting optimization...")
-    u_opt, _ = optimizer.solve(
+    u_opt = optimizer.solve(
         x_ref=x_ref,
-        x0=x0.item(),
-        v0=v0.item(),
+        x0=x0,
+        v0=v0,
         verbose=True
     )
     

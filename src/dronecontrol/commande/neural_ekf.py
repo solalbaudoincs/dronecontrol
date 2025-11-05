@@ -7,17 +7,17 @@ class NeuralEKF:
     Extended Kalman Filter wrapper for a neural network dynamics model.
     """
 
-    def __init__(self, model, hidden_dim: int, meas_dim: int, 
+    def __init__(self, model, hidden_dim: int, input_dim: int, 
                  Q_scale: float = 1e-3, R_scale: float = 1e-2):
         self.model = model
         self.hidden_dim = hidden_dim
-        self.meas_dim = meas_dim
+        self.input_dim = input_dim
 
         # État de l'EKF (sans filterpy)
         self.x = np.zeros(hidden_dim)           # État caché estimé
         self.P = np.eye(hidden_dim) * 0.1       # Covariance de l'état
         self.Q = np.eye(hidden_dim) * Q_scale   # Bruit de processus
-        self.R = np.eye(meas_dim) * R_scale     # Bruit de mesure
+        self.R = np.eye(input_dim) * R_scale     # Bruit de mesure
 
     def state_transition(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """State transition: h_k+1 = f(h_k, u_k) using the neural network."""
