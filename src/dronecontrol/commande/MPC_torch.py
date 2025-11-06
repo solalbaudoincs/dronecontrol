@@ -101,6 +101,10 @@ class MPCTorch(MPC):
         # Initialize control sequence on device
         u = torch.zeros(1, horizon, 1, requires_grad=True, device=device)
 
+        xk: torch.Tensor = torch.tensor(xk, dtype=torch.float32, device=device)
+        vk: torch.Tensor = torch.tensor(vk, dtype=torch.float32, device=device)
+
+
         # Select optimizer
         if self.optimizer_type == "lbfgs":
             optimizer = torch.optim.LBFGS([u], lr=self.lr, max_iter=self.max_epochs, line_search_fn="strong_wolfe")

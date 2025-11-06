@@ -46,8 +46,8 @@ class MPC(ABC):
         self.dt = dt
         self.horizon = horizon
         self.nb_steps = nb_steps
-        self.Q = torch.tensor(Q)
-        self.R = torch.tensor(R)
+        self.Q = torch.tensor(Q, requires_grad=False).to(device=next(accel_model.parameters()).device)
+        self.R = torch.tensor(R, requires_grad=False).to(device=next(accel_model.parameters()).device)
         self.u_min = u_min
         self.u_max = u_max
 
@@ -74,8 +74,8 @@ class MPC(ABC):
     def _compute_trajectory_wrt_NN(
         self,
         u: torch.Tensor,
-        xk: float,
-        vk: float,
+        xk: torch.Tensor,
+        vk: torch.Tensor,
         hk: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -96,17 +96,19 @@ class MPC(ABC):
             a, _ = self.accel_model(u, hk)  # a: [1, horizon, 1]
         
         a = a.squeeze(0).squeeze(-1)  # [horizon]
+        device, dtype = a.device, a.dtype
         horizon = a.shape[0]
 
-        # Integrate dynamics on the same device
-        x = torch.zeros(horizon, device=device)
-        v = torch.zeros(horizon, device=device)
+        # cumulative velocity increments
+        dv = a * self.dt                        # [horizon]
+        v_prefix = torch.cumsum(dv, dim=0)      # [horizon]
+        # v[0] should be vk, v[i] = vk + sum_{j=0..i-1} a[j]*dt for i>=1
+        v = vk + torch.cat((a.new_zeros(1), v_prefix[:-1]))  # [horizon]
 
-        x[0] = xk
-        v[0] = vk
-
-        v[1:] = vk + torch.cumsum(a[:-1] * self.dt, dim=0)
-        x[1:] = xk + torch.cumsum(v[:-1] * self.dt + 0.5 * a[:-1] * self.dt**2, dim=0)
+        # increments for position: use v[:-1] and a[:-1] (same semantics as original)
+        dx = v[:-1] * self.dt + 0.5 * a[:-1] * (self.dt ** 2)  # [horizon-1]
+        x_prefix = torch.cumsum(dx, dim=0)                     # [horizon-1]
+        x = xk + torch.cat((a.new_zeros(1), x_prefix))         # [horizon]
 
         return x, v, a
 
@@ -156,7 +158,7 @@ class MPC(ABC):
         if self.simulator is None:
             raise RuntimeError("Simulink simulator not available.")
 
-
+        
         device = next(self.accel_model.parameters()).device
         u_tensor = torch.tensor(u, device=device).view(1, -1, 1)  # [1, 1, 1]
         hk = hk.to(device)
@@ -174,7 +176,7 @@ class MPC(ABC):
         hk: torch.Tensor,
         xk: float,
         vk: float,
-    ) -> tuple[torch.Tensor, float, float, float]:
+    ) -> dict:
         """
         Compute predicted trajectory given control sequence.
 
@@ -251,6 +253,7 @@ class MPC(ABC):
                 vk=v_current,
                 verbose=verbose
             )
+            u_history[step] = torch.tensor(u_opt, dtype=torch.float32)
 
             h_hist_simulink[step], x_hist_simulink[step], v_hist_simulink[step], a_hist_simulink[step] = state_update_dict["simulink"]
             h_hist_nn[step], x_hist_nn[step], v_hist_nn[step], a_hist_nn[step] = state_update_dict["nn"]
@@ -364,7 +367,7 @@ class MPC(ABC):
         horizon = x_ref.shape[0]
         
         # Initialize control sequence
-        u = torch.zeros(self.num_layers, horizon, 1, requires_grad=True)
+        u = torch.zeros(self.num_layers, horizon, 1, requires_grad=True, device=next(self.accel_model.parameters()).device)
 
         u_optimal = self.optimize_control(            
             x_ref=x_ref,

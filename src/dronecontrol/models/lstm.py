@@ -44,7 +44,7 @@ class LSTM(BaseModel):
         )
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor]=None) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         # x: [batch, seq_len, input_dim]
 
         if hidden is not None:
