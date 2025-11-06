@@ -16,6 +16,7 @@ def main():
     
     # Configuration
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     g = 9.81
     dt = 0.1
     horizon = 30
@@ -48,7 +49,7 @@ def main():
         dt=dt,
         Q=np.eye(horizon) * 10,  # Control effort weight
         R=np.eye(horizon) * 1.0,  # Tracking error weight
-        lr=0.1,
+        lr=0.5,
         max_epochs=100,
         horizon=horizon,
         nb_steps=nb_steps,
@@ -78,7 +79,7 @@ def main():
     
     # Run optimization
     print("\nStarting optimization...")
-    u_opt, x, v, a = optimizer.solve(
+    u_opt, histories = optimizer.solve(
         x_ref=x_ref,
         x0=x0,
         v0=v0,
