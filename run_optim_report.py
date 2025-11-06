@@ -25,12 +25,10 @@ class ScenarioConfig:
     tracking_weight: float = 10.0
     lr: float = 0.1
     max_epochs: int = 100
-    checkpoint_path: Path = Path("models\\accel_vs_voltage\\gru\\gru-nobatchnorm-val_loss=0.03.ckpt")
+    checkpoint_path: Path = Path("models\\gru-epoch=62-val_loss=0.0022.ckpt")
     report_dir: Path = Path("predictions_plots")
-    optimize_trajectory: bool = True
-    max_speed: Optional[float] = 0.7
+    optimize_trajectory: bool = False
     tau: float = 0.2
-    Time:  float = 5.0
 
 
 def load_model(cfg: ScenarioConfig, device: torch.device) -> GRU:
@@ -44,7 +42,7 @@ def build_mpc(model: GRU, cfg: ScenarioConfig) -> MPCTorch:
     decay_weights = np.exp(-np.arange(cfg.horizon, dtype=np.float32) * 0.1)
     Q = np.diag(decay_weights * cfg.control_weight)
     R = np.diag(decay_weights * cfg.tracking_weight)
-    S = np.eye(cfg.horizon, dtype=np.float32) * (cfg.tracking_weight * 0.0)
+    S = np.eye(cfg.horizon, dtype=np.float32) * (cfg.tracking_weight * 0.1)
     
     return MPCTorch(
         accel_model=model,
@@ -59,7 +57,6 @@ def build_mpc(model: GRU, cfg: ScenarioConfig) -> MPCTorch:
         use_ekf=cfg.use_ekf,
         use_simulink=cfg.use_simulink,
         optimize_trajectory=cfg.optimize_trajectory,
-        max_speed=cfg.max_speed,
     )
 
 
@@ -169,7 +166,7 @@ def main() -> None:
     x0 = 0.0
     v0 = 0.0
 
-    x_ref = torch.rand(5, dtype=torch.float32)
+    x_ref = torch.tensor([0.5, -0.25, 0], dtype=torch.float32)
 
     print("Running MPC optimization...")
     u_hist, histories = controller.solve(
@@ -228,11 +225,11 @@ def main() -> None:
     trimmed = {k: np.asarray(v)[:min_len] for k, v in data_dict.items()}
 
     df = pd.DataFrame(trimmed)
-    combined_path = report_dir / "gru_mpc_report_0.03csv"
+    combined_path = report_dir / "best_model" / "gru_mpc_report_0.002_cons.csv"
     df.to_csv(combined_path, index=False)
 
     # Only save the combined DataFrame as a single CSV (contains all series)
-    figure_path = report_dir / "gru_mpc_report_0.03.png"
+    figure_path = report_dir / "best_model" / "gru_mpc_report_0.002_cons.png"
 
     plot_results(
         time_grid=time_grid,

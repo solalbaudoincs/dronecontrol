@@ -29,7 +29,7 @@ class MPCTorch(MPC):
         use_ekf: bool = False,
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
-        max_speed: Optional[float] = None,
+        max_accel: float = 9.81,
         smoothing: bool = True,
         smoothing_alpha: float = 0.3,
     ):
@@ -62,7 +62,7 @@ class MPCTorch(MPC):
             use_ekf=use_ekf,
             use_simulink=use_simulink,
             optimize_trajectory=optimize_trajectory,
-            max_speed=max_speed,
+            max_accel=max_accel,
             smoothing=smoothing,
             smoothing_alpha=smoothing_alpha,
         )
@@ -110,7 +110,7 @@ class MPCTorch(MPC):
         x_ref = x_ref.to(device)
         hk = hk.to(device)
         # Initialize control sequence on device
-        u = torch.zeros(1, horizon, 1, requires_grad=True, device=device)
+        u = torch.zeros(horizon, 1, requires_grad=True, device=device)
         
         optimizer = torch.optim.Adam([u], lr=self.lr)
         
@@ -142,7 +142,7 @@ class MPCTorch(MPC):
             # speed_tracking_loss = torch.dot(lag.view(-1), S @ lag.view(-1))
 
             # ||u||_Q^2 = u^T Q u
-            u_flat = u.squeeze(0).squeeze(-1) # [horizon]
+            u_flat = u.squeeze(-1) # [horizon]
             Q = self.Q[:horizon, :horizon]
             control_loss = torch.dot(u_flat, Q @ u_flat)
 
@@ -169,7 +169,7 @@ class MPCTorch(MPC):
                 break
         
         # Extract optimal control
-        u_optimal = u.detach()[0, 0, 0].item()
+        u_optimal = u.detach()[0, 0].item()
 
         
         return u_optimal

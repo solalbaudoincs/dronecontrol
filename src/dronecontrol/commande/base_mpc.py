@@ -26,7 +26,7 @@ class MPC(ABC):
         use_ekf: bool = False,
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
-        max_speed: Optional[float] = None,
+        max_accel: float = 9.81,
         smoothing: bool = True,
         smoothing_alpha: float = 0.3,
     ):
@@ -71,7 +71,7 @@ class MPC(ABC):
 
         self.simulator = DroneSimulator()
 
-        self.max_speed = max_speed
+        self.max_accel = max_accel
         self.optimize_trajectory = optimize_trajectory
         self.smoothing = smoothing
         self.smoothing_alpha = smoothing_alpha
@@ -98,9 +98,9 @@ class MPC(ABC):
 
         # Predict accelerations
         with torch.set_grad_enabled(u.requires_grad):
-            a, _ = self.accel_model(u, hk)  # a: [1, horizon, 1]
-        
-        a = a.squeeze(0).squeeze(-1)  # [horizon]
+            a, _ = self.accel_model(u, hk)  # a: [horizon, 1]
+
+        a = a.squeeze(-1)  # [horizon]
         horizon = a.shape[0]
 
         # Integrate dynamics on the same device
@@ -114,7 +114,6 @@ class MPC(ABC):
         v[1:] = vk + torch.cumsum(a[:-1] * self.dt, dim=0)
         x[1:] = xk + torch.cumsum(v[:-1] * self.dt + 0.5 * a[:-1] * self.dt**2, dim=0)
 
-        print(f"x horizon for the nn x[1:]: {x[1:]}")
 
         return x, v, a
 
@@ -135,7 +134,7 @@ class MPC(ABC):
         """
         # Predict accelerations on the model's device
         device = next(self.accel_model.parameters()).device
-        u_tensor = torch.tensor(u, device=device).view(1, -1, 1)  # [1, 1, 1]
+        u_tensor = torch.tensor(u, device=device).view(-1, 1)  # [1, 1]
         hk = hk
         a, h_new = self.accel_model(u_tensor, hk)
 
@@ -166,7 +165,7 @@ class MPC(ABC):
 
 
         device = next(self.accel_model.parameters()).device
-        u_tensor = torch.tensor(u, device=device).view(1, -1, 1)  # [1, 1, 1]
+        u_tensor = torch.tensor(u, device=device).view(-1, 1)  # [1, 1, 1]
         hk = hk.to(device)
         _, h_new = self.accel_model(u_tensor, hk)
 
@@ -231,21 +230,17 @@ class MPC(ABC):
 
         x_ref_step = x_ref
 
-        if self.optimize_trajectory :
-            if self.max_speed is None:
-                raise ValueError("max_speed must be provided to optimize trajectory.")
+        with torch.no_grad():
             
-            with torch.no_grad():
-                
-                traj_computer = TrajectoryOptimizer(
-                    dt=self.dt,
-                    max_speed=self.max_speed,
-                    x_ref=x_ref,
-                    x0=x0,
-                    smoothing=self.smoothing,
-                    alpha=self.smoothing_alpha,
-                )
-                x_ref, x_ref_step = traj_computer.optimize_trajectory()
+            traj_computer = TrajectoryOptimizer(
+                dt=self.dt,
+                max_accel=self.max_accel,
+                x_ref=x_ref,
+                x0=x0,
+                smoothing=self.smoothing,
+                alpha=self.smoothing_alpha,
+            )
+            x_ref, x_ref_step = traj_computer.optimize_trajectory()
 
         nb_steps = x_ref.shape[0]
 
@@ -269,8 +264,8 @@ class MPC(ABC):
         if self.use_simulink:
             initial_state = np.array([x0] + [0.0]*11, dtype=np.float32)  # Assuming 6 state variables in total
             self.simulator.reset(initial_state) #type: ignore
-            
-        h_current = torch.zeros(self.num_layers, 1, self.hidden_dim)
+
+        h_current = torch.zeros(self.num_layers, self.hidden_dim)
 
 
         for step in range(nb_steps):
@@ -303,24 +298,18 @@ class MPC(ABC):
                           f"u={u_opt:7.3f} | "
                           f"err={tracking_error:7.4f}")
 
+            h_current = h_current.detach()
             # Apply EKF if enabled
             if self.use_ekf and self.ekf is not None:
                 # EKF update
-                h_new = np.zeros((self.num_layers, self.hidden_dim))
-                h_current_np = h_current.squeeze(1).detach().cpu().numpy()
 
-                for i in range(self.num_layers):
-                    h_new[i, :] = self.ekf.step(
-                        u=np.array([u_opt]),
-                        hk=h_current_np[i, :],
-                        a_measured=np.array([a_current])
+
+                h_current = self.ekf.step(
+                        u=torch.tensor(u_opt, dtype=torch.float32).view(1, 1),
+                        hk=h_current,
+                        a_measured=torch.tensor(a_current, dtype=torch.float32)
                     )
 
-                h_current = torch.tensor(h_new, dtype=torch.float32).unsqueeze(1)
-
-            else:
-
-                h_current = h_current.detach()
         
         histories = {
             "simulink": {
@@ -401,7 +390,7 @@ class MPC(ABC):
         horizon = x_ref.shape[0]
         
         # Initialize control sequence
-        u = torch.zeros(self.num_layers, horizon, 1, requires_grad=True)
+        u = torch.zeros(horizon, 1, requires_grad=True)
 
         u_optimal = self.optimize_control(            
             x_ref=x_ref,
