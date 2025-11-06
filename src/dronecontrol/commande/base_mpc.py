@@ -26,7 +26,9 @@ class MPC(ABC):
         use_ekf: bool = False,
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
-        max_speed: Optional[float] = None
+        max_speed: Optional[float] = None,
+        smoothing: bool = True,
+        smoothing_alpha: float = 0.3,
     ):
         """
         Initialize MPC controller.
@@ -74,6 +76,8 @@ class MPC(ABC):
 
         self.max_speed = max_speed
         self.optimize_trajectory = optimize_trajectory
+        self.smoothing = smoothing
+        self.smoothing_alpha = smoothing_alpha
 
     def _compute_trajectory_wrt_NN(
         self,
@@ -205,7 +209,7 @@ class MPC(ABC):
         v0: float,
         a0: float = 0.0,
         verbose: bool = True,
-    ) -> Tuple[torch.Tensor, dict]:
+    ) -> Tuple[torch.Tensor, Dict[str, Dict[str, torch.Tensor]]]:
         """
         Solve MPC optimization problem.
 
@@ -225,6 +229,8 @@ class MPC(ABC):
         
         # Initialize
 
+        x_ref_step = x_ref
+
         if self.optimize_trajectory :
             if self.max_speed is None:
                 raise ValueError("max_speed must be provided to optimize trajectory.")
@@ -235,13 +241,13 @@ class MPC(ABC):
                     dt=self.dt,
                     max_speed=self.max_speed,
                     x_ref=x_ref,
-                    x0=x0
+                    x0=x0,
+                    smoothing=self.smoothing,
+                    alpha=self.smoothing_alpha,
                 )
-                
-                x_ref = traj_computer.optimize_trajectory()
+                x_ref, x_ref_step = traj_computer.optimize_trajectory()
 
         nb_steps = x_ref.shape[0]
-
 
         x_current = x0
         u_history = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
@@ -259,6 +265,7 @@ class MPC(ABC):
         v_current = v0
         a_current = a0
         x_current = x0
+
         if self.use_simulink:
             initial_state = np.array([x0] + [0.0]*11, dtype=np.float32)  # Assuming 6 state variables in total
             self.simulator.reset(initial_state) #type: ignore
@@ -275,6 +282,8 @@ class MPC(ABC):
                 vk=v_current,
                 verbose=verbose
             )
+
+            u_history[step] = u_opt
 
             h_hist_simulink[step], x_hist_simulink[step], v_hist_simulink[step], a_hist_simulink[step] = state_update_dict["simulink"]
             h_hist_nn[step], x_hist_nn[step], v_hist_nn[step], a_hist_nn[step] = state_update_dict["nn"]
@@ -325,6 +334,10 @@ class MPC(ABC):
                 "x": x_hist_nn,
                 "v": v_hist_nn,
                 "a": a_hist_nn
+            },
+            "references": 
+            {"steps" : x_ref_step,
+             "filtered": x_ref
             }
         }
 

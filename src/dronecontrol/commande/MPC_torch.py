@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 
 from dronecontrol.commande.base_mpc import MPC, ArrayLike
@@ -26,7 +27,11 @@ class MPCTorch(MPC):
         u_min: float = -5.0,
         u_max: float = 5.0,
         use_ekf: bool = False,
-        use_simulink: bool = False
+        use_simulink: bool = False,
+        optimize_trajectory: bool = False,
+        max_speed: Optional[float] = None,
+        smoothing: bool = True,
+        smoothing_alpha: float = 0.3,
     ):
         """
         Initialize MPC controller.
@@ -55,7 +60,11 @@ class MPCTorch(MPC):
             u_min=u_min,
             u_max=u_max,
             use_ekf=use_ekf,
-            use_simulink=use_simulink
+            use_simulink=use_simulink,
+            optimize_trajectory=optimize_trajectory,
+            max_speed=max_speed,
+            smoothing=smoothing,
+            smoothing_alpha=smoothing_alpha,
         )
         
         self.lr = lr

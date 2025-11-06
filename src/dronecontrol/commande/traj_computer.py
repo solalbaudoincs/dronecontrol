@@ -1,4 +1,6 @@
 import torch
+from typing import Tuple
+
 
 class TrajectoryOptimizer:
 
@@ -7,12 +9,16 @@ class TrajectoryOptimizer:
             dt: float,
             max_speed: float,
             x_ref: torch.Tensor,
-            x0: float
+            x0: float,
+            smoothing: bool = True,
+            alpha: float = 0.3,
             ):
         self.dt = dt
         self.max_speed = max_speed
         self.x_ref = x_ref
         self.x0 = x0
+        self.smoothing = smoothing
+        self.alpha = alpha
 
     def _get_nb_steps(self, x, x0) -> int:
         """Compute number of steps from horizon and dt."""
@@ -22,32 +28,41 @@ class TrajectoryOptimizer:
     def exponential_moving_average(x: torch.Tensor, alpha: float) -> torch.Tensor:
         y = torch.zeros_like(x)
         y[0] = x[0]
-        y[:-1] = alpha * x[:-1] + (1 - alpha) * y[1:]
+        for i in range(1, len(x)):
+            y[i] = alpha * x[i] + (1 - alpha) * y[i - 1]
         return y
 
 
-    def optimize_trajectory(self) -> torch.Tensor:
+    def optimize_trajectory(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Optimize trajectory through all reference points in x_ref.
         Creates a trajectory from x0 -> x_ref[0] -> x_ref[1] -> ... -> x_ref[-1]
         """
         trajectories = []
+        steps = []
         current_pos = self.x0
         
         # Iterate through each reference point
         for i in range(self.x_ref.shape[0]):
             x_target = self.x_ref[i].item()
-            nb_steps = self._get_nb_steps(x_target, current_pos)
+            nb_steps = self._get_nb_steps(x_target, current_pos) * 3
             # Create trajectory segment from current position to target
             segment = torch.ones((nb_steps), dtype=torch.float32)
             segment[0] = current_pos
             segment[1:] *= x_target
-            smoothed_segment = self.exponential_moving_average(segment, alpha=0.1)
-            trajectories.append(smoothed_segment)
+
+            if self.smoothing:
+                smoothed_segment = self.exponential_moving_average(segment, alpha=self.alpha)
+                trajectories.append(smoothed_segment)
+            else:
+                trajectories.append(segment)
+
+            steps.append(segment)
             # Update current position for next segment
             current_pos = x_target
         
         # Concatenate all trajectory segments
         full_trajectory = torch.cat(trajectories)
+        x_ref_step = torch.cat(steps)
 
-        return full_trajectory
+        return full_trajectory, x_ref_step
