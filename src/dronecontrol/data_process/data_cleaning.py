@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import Any, Tuple
 from pathlib import Path
+from sklearn.preprocessing import StandardScaler
 
 from abc  import ABC, abstractmethod
 
@@ -14,9 +15,12 @@ class DataCleaner(ABC):
 	"""Base class for loading and cleaning data from csvs."""
 	
 	def __init__(self, input_fp: str, output_fp: str):
-		self.input_df = pd.read_csv(input_fp, header=None)
-		self.output_df = pd.read_csv(output_fp, header=None)
-	
+		input_df = pd.read_csv(input_fp, header=None)
+		output_df = pd.read_csv(output_fp, header=None)
+		scaled_input = StandardScaler().fit_transform(input_df)
+		self.input_df = pd.DataFrame(scaled_input)
+		self.output_df = output_df
+
 	@abstractmethod
 	def get_clean_data(self) -> Tuple[np.ndarray, np.ndarray]:
 		pass

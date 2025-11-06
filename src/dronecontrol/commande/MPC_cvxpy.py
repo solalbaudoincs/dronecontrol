@@ -52,7 +52,6 @@ class MPCCVXPY(MPC):
             accel_model=accel_model,
             dt=dt,
             horizon=horizon,
-            nb_steps=nb_steps,
             Q=Q,
             R=R,
             u_min=u_min,

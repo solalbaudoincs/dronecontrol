@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 import torch
 
 from dronecontrol.commande.base_mpc import MPC, ArrayLike
@@ -131,23 +131,22 @@ class MPCTorch(MPC):
 
             # Control tracking error for trajectory
             # ||x - x_ref||_R^2 = (x - x_ref)^T R (x - x_ref)
-            error = x_pred - x_ref
+            error = x_pred - x_ref  # Adjusted reference
             R = self.R[:horizon, :horizon]
             tracking_loss = torch.dot(error, R @ error)
 
-            # Control tracking effort for speed
-            # x' = 1/tau * (x_pred - x_ref)
-            lag = self.tau * v_pred - (x_pred - x_ref)
-            S = self.S[:horizon, :horizon]
-            speed_tracking_loss = torch.dot(lag.view(-1), S @ lag.view(-1))
+            # # Control tracking effort for speed
+            # # x' = 1/tau * (x_pred - x_ref)
+            # lag = self.tau * v_pred - (x_pred - x_ref)
+            # S = self.S[:horizon, :horizon]
+            # speed_tracking_loss = torch.dot(lag.view(-1), S @ lag.view(-1))
 
             # ||u||_Q^2 = u^T Q u
-            u_stable = 0.387
-            u_flat = u.squeeze(0).squeeze(-1) - u_stable # [horizon]
+            u_flat = u.squeeze(0).squeeze(-1) # [horizon]
             Q = self.Q[:horizon, :horizon]
             control_loss = torch.dot(u_flat, Q @ u_flat)
 
-            loss = tracking_loss + control_loss + speed_tracking_loss
+            loss = tracking_loss + control_loss #+ speed_tracking_loss
 
             # Backward and step
             loss.backward()
@@ -171,6 +170,7 @@ class MPCTorch(MPC):
         
         # Extract optimal control
         u_optimal = u.detach()[0, 0, 0].item()
+
         
         return u_optimal
 

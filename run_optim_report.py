@@ -6,6 +6,7 @@ import numpy as np
 from typing import Optional
 import torch
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from dronecontrol.models.gru_module import GRU
 from dronecontrol.commande.MPC_torch import MPCTorch
@@ -14,11 +15,11 @@ from dronecontrol.commande.MPC_torch import MPCTorch
 @dataclass
 class ScenarioConfig:
     dt: float = 0.05
-    horizon: int = 30
+    horizon: int = 15
     hidden_dim: int = 8
     num_layers: int = 1
     dropout: float = 0.0
-    use_ekf: bool = False
+    use_ekf: bool = True
     use_simulink: bool = True
     control_weight: float = 1.0
     tracking_weight: float = 10.0
@@ -27,7 +28,9 @@ class ScenarioConfig:
     checkpoint_path: Path = Path("models\\accel_vs_voltage\\gru\\gru-nobatchnorm-val_loss=0.03.ckpt")
     report_dir: Path = Path("predictions_plots")
     optimize_trajectory: bool = True
-    max_speed: Optional[float] = 5
+    max_speed: Optional[float] = 0.7
+    tau: float = 0.2
+    Time:  float = 5.0
 
 
 def load_model(cfg: ScenarioConfig, device: torch.device) -> GRU:
@@ -40,7 +43,7 @@ def build_mpc(model: GRU, cfg: ScenarioConfig) -> MPCTorch:
     # Create decaying weights: current control is more important than future
     decay_weights = np.exp(-np.arange(cfg.horizon, dtype=np.float32) * 0.1)
     Q = np.diag(decay_weights * cfg.control_weight)
-    R = np.eye(cfg.horizon, dtype=np.float32) * cfg.tracking_weight
+    R = np.diag(decay_weights * cfg.tracking_weight)
     S = np.eye(cfg.horizon, dtype=np.float32) * (cfg.tracking_weight * 0.0)
     
     return MPCTorch(
@@ -50,7 +53,7 @@ def build_mpc(model: GRU, cfg: ScenarioConfig) -> MPCTorch:
         Q=Q,
         R=R,
         S=S,
-        tau=0.5,
+        tau=cfg.tau,
         lr=cfg.lr,
         max_epochs=cfg.max_epochs,
         use_ekf=cfg.use_ekf,
@@ -99,7 +102,7 @@ def plot_results(
     fig, axes = plt.subplots(5, 1, figsize=(12, 14), sharex=True)
 
     # Position tracking: compare reference, simulink and NN predictions
-    axes[0].plot(time_grid, optimized_trajectory, label="Optimized Trajectory", color="tab:purple", linewidth=2, alpha=0.7)
+    axes[0].plot(time_grid, optimized_trajectory, label="Filtered reference", color="tab:purple", linewidth=2, alpha=0.7)
     axes[0].plot(time_grid, x_ref, label="Reference", color="tab:blue", linewidth=2, linestyle=":")
     axes[0].plot(time_grid, x_sim, label="Position (Simulink)", color="tab:orange", linewidth=2)
     axes[0].plot(time_grid, x_nn, label="Position (NN)", color="tab:green", linestyle="--")
@@ -109,20 +112,20 @@ def plot_results(
 
     
     # Control effort
-    axes[4].plot(time_grid, u_history, color="tab:blue")
-    axes[4].set_ylabel("Control input")
-    axes[4].set_title("Control sequence")
-    axes[4].set_xlabel("Time [s]")
+    axes[1].plot(time_grid, u_history, color="tab:blue")
+    axes[1].set_ylabel("Control input")
+    axes[1].set_title("Control sequence")
+    axes[1].set_xlabel("Time [s]")
 
     # Tracking error for both Simulink and NN
     tracking_error_sim = x_sim - x_ref
     tracking_error_nn = x_nn - x_ref
-    axes[1].plot(time_grid, tracking_error_sim, label="Error (Sim)", color="tab:red")
-    axes[1].plot(time_grid, tracking_error_nn, label="Error (NN)", color="tab:pink", linestyle="--")
-    axes[1].fill_between(time_grid, tracking_error_sim, 0, color="tab:red", alpha=0.15)
-    axes[1].set_title("Tracking error")
-    axes[1].set_ylabel("Error [m]")
-    axes[1].legend(loc="upper left", fontsize=8, framealpha=0.6)
+    axes[2].plot(time_grid, tracking_error_sim, label="Error (Sim)", color="tab:red")
+    axes[2].plot(time_grid, tracking_error_nn, label="Error (NN)", color="tab:pink", linestyle="--")
+    axes[2].fill_between(time_grid, tracking_error_sim, 0, color="tab:red", alpha=0.15)
+    axes[2].set_title("Tracking error")
+    axes[2].set_ylabel("Error [m]")
+    axes[2].legend(loc="upper left", fontsize=8, framealpha=0.6)
 
     # Acceleration: Simulink measured vs NN predicted
     axes[3].plot(time_grid, a_sim, label="Accel (Simulink)", color="tab:brown")
@@ -132,12 +135,11 @@ def plot_results(
     axes[3].legend(loc="upper left", fontsize=8, framealpha=0.6)
     
     # Velocity comparison
-    axes[2].plot(time_grid, v_sim, label="Velocity (Simulink)", color="tab:purple", linewidth=2)
-    axes[2].plot(time_grid, v_nn, label="Velocity (NN)", color="tab:olive", linestyle="--")
-    axes[2].set_ylabel("Velocity [m/s]")
-    axes[2].set_title("Velocity estimates")
-    axes[2].legend(loc="upper left", fontsize=8, framealpha=0.6)
-
+    axes[4].plot(time_grid, v_sim, label="Velocity (Simulink)", color="tab:purple", linewidth=2)
+    axes[4].plot(time_grid, v_nn, label="Velocity (NN)", color="tab:olive", linestyle="--")
+    axes[4].set_ylabel("Velocity [m/s]")
+    axes[4].set_title("Velocity estimates")
+    axes[4].legend(loc="upper left", fontsize=8, framealpha=0.6)
 
 
     for axis in axes:
@@ -164,10 +166,10 @@ def main() -> None:
     model = load_model(cfg, device)
     controller = build_mpc(model, cfg)
 
-    x0 = 1.0
+    x0 = 0.0
     v0 = 0.0
 
-    x_ref = torch.tensor([8, -6, 0], dtype=torch.float32)
+    x_ref = torch.rand(5, dtype=torch.float32)
 
     print("Running MPC optimization...")
     u_hist, histories = controller.solve(
@@ -176,7 +178,6 @@ def main() -> None:
         v0=v0,
         verbose=True,
     )
-
 
     # Extract histories for simulink and NN
     x_sim = histories["simulink"]["x"]
@@ -192,7 +193,6 @@ def main() -> None:
 
     time_grid = np.arange(optimized_trajectory.shape[0], dtype=np.float32) * cfg.dt
 
-
     x_sim_np = x_sim.detach().cpu().numpy()
     v_sim_np = v_sim.detach().cpu().numpy()
     a_sim_np = a_sim.detach().cpu().numpy()
@@ -205,8 +205,34 @@ def main() -> None:
     x_ref_np = x_ref.detach().cpu().numpy()
     optimized_trajectory_np = optimized_trajectory.detach().cpu().numpy()
 
+    # --- Save plotted data as CSVs and a combined DataFrame ---
+    report_dir = cfg.report_dir
+    report_dir.mkdir(parents=True, exist_ok=True)
 
-    figure_path = cfg.report_dir / "gru_mpc_report4_noekf.png"
+    # Prepare data dictionary (ensure same length by trimming to min length)
+    data_dict = {
+        "time": time_grid,
+        "optimized_trajectory": optimized_trajectory_np,
+        "reference": x_ref_np,
+        "x_sim": x_sim_np,
+        "x_nn": x_nn_np,
+        "v_sim": v_sim_np,
+        "v_nn": v_nn_np,
+        "a_sim": a_sim_np,
+        "a_nn": a_nn_np,
+        "u_history": u_hist_np,
+    }
+
+    # Trim all arrays to the shortest length to avoid shape mismatch
+    min_len = min(len(v) for v in data_dict.values())
+    trimmed = {k: np.asarray(v)[:min_len] for k, v in data_dict.items()}
+
+    df = pd.DataFrame(trimmed)
+    combined_path = report_dir / "gru_mpc_report_0.03csv"
+    df.to_csv(combined_path, index=False)
+
+    # Only save the combined DataFrame as a single CSV (contains all series)
+    figure_path = report_dir / "gru_mpc_report_0.03.png"
 
     plot_results(
         time_grid=time_grid,
@@ -221,6 +247,8 @@ def main() -> None:
         u_history=u_hist_np,
         figure_path=figure_path,
     )
+
+    
 
     print("Optimization completed.")
     print(f"Figure saved to {figure_path}")
