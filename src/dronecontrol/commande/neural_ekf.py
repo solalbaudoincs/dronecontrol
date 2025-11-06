@@ -32,31 +32,34 @@ class NeuralEKF:
 
     def state_transition(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """State transition: h_k+1 = f(h_k, u_k) using the neural network."""
-        h_t = torch.tensor(h, dtype=torch.float32).unsqueeze(0)
-        u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
+        device = next(self.model.parameters()).device
+        h_t = torch.tensor(h, dtype=torch.float32, device=device).unsqueeze(0)
+        u_t = torch.tensor(u, dtype=torch.float32, device=device).unsqueeze(0)
         
         with torch.no_grad():
             _, h_next = self.model(u_t, h_t)
         
-        return h_next.squeeze(0).numpy()
+        return h_next.squeeze(0).detach().cpu().numpy()
 
     def measurement_function(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """Measurement function: a_k = h(h_k, u_k) - predict accel from hidden state."""
-        h_t = torch.tensor(h, dtype=torch.float32).unsqueeze(0)
-        u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
+        device = next(self.model.parameters()).device
+        h_t = torch.tensor(h, dtype=torch.float32, device=device).unsqueeze(0)
+        u_t = torch.tensor(u, dtype=torch.float32, device=device).unsqueeze(0)
         
         with torch.no_grad():
             a_hat, _ = self.model(u_t, h_t)
         
-        return a_hat.squeeze(0).numpy()
+        return a_hat.squeeze(0).detach().cpu().numpy()
     
     def compute_H(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
 
         """
         Compute Jacobian of measurement function with respect to hidden state h.
         """
-        h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True).unsqueeze(0)
-        u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
+        device = next(self.model.parameters()).device
+        h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True, device=device).unsqueeze(0)
+        u_t = torch.tensor(u, dtype=torch.float32, device=device).unsqueeze(0)
         
         def func(h):
             a_hat, _ = self.model(u_t, h)
@@ -64,15 +67,16 @@ class NeuralEKF:
         
         H = torch.autograd.functional.jacobian(func, h_t)
         
-        return H.squeeze(0).squeeze(1).numpy()
+        return H.squeeze(0).squeeze(1).detach().cpu().numpy()
     
 
     def compute_F(self, u: np.ndarray, h: np.ndarray) -> np.ndarray:
         """
         Compute Jacobian of func with respect to hidden state h.
         """
-        h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True).unsqueeze(0)
-        u_t = torch.tensor(u, dtype=torch.float32).unsqueeze(0)
+        device = next(self.model.parameters()).device
+        h_t = torch.tensor(h, dtype=torch.float32, requires_grad=True, device=device).unsqueeze(0)
+        u_t = torch.tensor(u, dtype=torch.float32, device=device).unsqueeze(0)
         
         def func(h):
             _, h_next = self.model(u_t, h)
@@ -80,7 +84,7 @@ class NeuralEKF:
         
         F = torch.autograd.functional.jacobian(func, h_t)
         
-        return F.squeeze(0).squeeze(1).numpy()
+        return F.squeeze(0).squeeze(1).detach().cpu().numpy()
 
     def step(self, u: np.ndarray, hk: np.ndarray, a_measured: np.ndarray) -> np.ndarray:
         """
