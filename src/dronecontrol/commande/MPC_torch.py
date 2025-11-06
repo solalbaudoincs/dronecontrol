@@ -63,8 +63,8 @@ class MPCTorch(MPC):
         self.max_epochs = max_epochs
         self.optimizer_type = optimizer_type.lower()
         # Store scalar weights for loss computation
-        self.Q = torch.tensor(Q, dtype=torch.float32)
-        self.R = torch.tensor(R, dtype=torch.float32)
+        self.Q = torch.tensor(Q, dtype=torch.float32, device="cuda" if torch.cuda.is_available() else "cpu")
+        self.R = torch.tensor(R, dtype=torch.float32, device="cuda" if torch.cuda.is_available() else "cpu")
 
     def project_control(self, u: torch.Tensor) -> torch.Tensor:
         """Project control to satisfy bounds."""
@@ -93,9 +93,13 @@ class MPCTorch(MPC):
         Returns:
             u_optimal: Optimized control for first step
         """
+        device = next(self.accel_model.parameters()).device
         horizon = x_ref.shape[0]
-        # Initialize control sequence
-        u = torch.zeros(1, horizon, 1, requires_grad=True)
+        # Ensure tensors are on the model's device
+        x_ref = x_ref.to(device)
+        hk = hk.to(device)
+        # Initialize control sequence on device
+        u = torch.zeros(1, horizon, 1, requires_grad=True, device=device)
 
         # Select optimizer
         if self.optimizer_type == "lbfgs":
@@ -150,6 +154,7 @@ class MPCTorch(MPC):
             optimizer = torch.optim.Adam([u], lr=self.lr)
             
             # Optimization loop
+            R = self.R[:horizon, :horizon]
             for epoch in range(self.max_epochs):
                 optimizer.zero_grad()
                 
@@ -161,11 +166,10 @@ class MPCTorch(MPC):
                 # Loss: tracking + control effort
                 # ||x - x_ref||_R^2 = (x - x_ref)^T R (x - x_ref)
                 error = x_pred - x_ref
-                R = self.R[:horizon, :horizon]
                 tracking_loss = torch.dot(error, R @ error)
                 
                 # ||u||_Q^2 = u^T Q u
-                u_flat = u.squeeze(0).squeeze(-1)  # [horizon]
+                u_flat = u.squeeze(0).squeeze(-1) - 0.387 # [horizon]
                 Q = self.Q[:horizon, :horizon]
                 control_loss = torch.dot(u_flat, Q @ u_flat)
 
@@ -182,7 +186,7 @@ class MPCTorch(MPC):
                 
                 # # Log first epoch, last epoch, or every 10 epochs if verbose
                 # should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
-                #              (verbose and (epoch + 1) % (self.max_epochs//20) == 0))
+                #              (verbose and (epoch + 1) % (self.max_epochs) == 0))
                 
                 # if should_log:
                 #     print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
@@ -216,7 +220,7 @@ if __name__ == "__main__":
     x_ref = np.linspace(0, 10, 50)
     
     # Run MPC
-    u_history, state_history = mpc.solve(
+    u_history, state_ y = mpc.solve(
         x_ref=x_ref, 
         x0=0.0, 
         v0=0.0, 

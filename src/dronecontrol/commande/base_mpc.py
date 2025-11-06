@@ -86,6 +86,11 @@ class MPC(ABC):
             v: Velocities [horizon]
             a: Accelerations [horizon]
         """
+        # Ensure inputs are on the model's device
+        device = next(self.accel_model.parameters()).device
+        u = u
+        hk = hk
+
         # Predict accelerations
         with torch.set_grad_enabled(u.requires_grad):
             a, _ = self.accel_model(u, hk)  # a: [1, horizon, 1]
@@ -93,9 +98,9 @@ class MPC(ABC):
         a = a.squeeze(0).squeeze(-1)  # [horizon]
         horizon = a.shape[0]
 
-        # Integrate dynamics
-        x = torch.zeros(horizon)
-        v = torch.zeros(horizon)
+        # Integrate dynamics on the same device
+        x = torch.zeros(horizon, device=device)
+        v = torch.zeros(horizon, device=device)
 
         x[0] = xk
         v[0] = vk
@@ -120,8 +125,10 @@ class MPC(ABC):
             v: Velocities [horizon]
             a: Accelerations [horizon]
         """
-        # Predict accelerations
-        u_tensor = torch.tensor(u).view(1, -1, 1)  # [1, 1, 1]
+        # Predict accelerations on the model's device
+        device = next(self.accel_model.parameters()).device
+        u_tensor = torch.tensor(u, device=device).view(1, -1, 1)  # [1, 1, 1]
+        hk = hk
         a, h_new = self.accel_model(u_tensor, hk)
 
         x_new = xk + vk * self.dt + 0.5 * a.item() * self.dt**2
@@ -150,7 +157,9 @@ class MPC(ABC):
             raise RuntimeError("Simulink simulator not available.")
 
 
-        u_tensor = torch.tensor(u).view(1, -1, 1)  # [1, 1, 1]
+        device = next(self.accel_model.parameters()).device
+        u_tensor = torch.tensor(u, device=device).view(1, -1, 1)  # [1, 1, 1]
+        hk = hk.to(device)
         _, h_new = self.accel_model(u_tensor, hk)
 
         a_measured = self.simulator.accel(control_input=[u] * 4)[-1]
@@ -174,11 +183,16 @@ class MPC(ABC):
             v: Velocities [horizon]
             a: Accelerations [horizon]
         """
-        if self.use_simulink:
-            return self._update_states_simulink(u, hk)
-        else:
-            return self._update_states_NN(u, hk, xk, vk)
+        
+        # if self.use_simulink:
+        #     return self._update_states_simulink(u, hk)
+        # else:
+        #     return self._update_states_NN(u, hk, xk, vk)
 
+        return {
+            "simulink": self._update_states_simulink(u, hk),
+            "nn": self._update_states_NN(u, hk, xk, vk)
+        } #type: ignore
     
     def solve(
         self,
@@ -187,7 +201,7 @@ class MPC(ABC):
         v0: float,
         a0: float = 0.0,
         verbose: bool = True,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, dict]:
         """
         Solve MPC optimization problem.
 
@@ -207,20 +221,30 @@ class MPC(ABC):
         
         # Initialize
         u_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        x_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        v_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        a_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        h_hist_simulink = torch.zeros((self.nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
+        x_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        v_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        a_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+
+        h_hist_nn = torch.zeros((self.nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
+        x_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)    
+        v_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        a_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
         x_ref = torch.tensor(x_ref, dtype=torch.float32, requires_grad=False)
         
-        x_current = x0
         v_current = v0
         a_current = a0
+        x_current = x0
+        if self.use_simulink:
+            initial_state = np.array([x0] + [0.0]*11, dtype=np.float32)  # Assuming 6 state variables in total
+            self.simulator.reset(initial_state) #type: ignore
+            
         h_current = torch.zeros(self.num_layers, 1, self.hidden_dim)
 
 
         for step in range(self.nb_steps):
 
-            u_opt, h_current, x_current, v_current, a_current = self.step(
+            u_opt, state_update_dict = self.step(
                 x_ref=x_ref[step:step + self.horizon],
                 hk=h_current,
                 xk=x_current,
@@ -228,10 +252,11 @@ class MPC(ABC):
                 verbose=verbose
             )
 
-            u_history[step] = u_opt
-            x_history[step] = x_current
-            v_history[step] = v_current
-            a_history[step] = a_current
+            h_hist_simulink[step], x_hist_simulink[step], v_hist_simulink[step], a_hist_simulink[step] = state_update_dict["simulink"]
+            h_hist_nn[step], x_hist_nn[step], v_hist_nn[step], a_hist_nn[step] = state_update_dict["nn"]
+
+            key = "simulink" if self.use_simulink else "nn"
+            h_current, x_current, v_current, a_current = state_update_dict[key]
             
             # Compute tracking error
             tracking_error = abs(x_current - x_ref[step]) if step < len(x_ref) else 0.0
@@ -249,7 +274,7 @@ class MPC(ABC):
             if self.use_ekf and self.ekf is not None:
                 # EKF update
                 h_new = np.zeros((self.num_layers, self.hidden_dim))
-                h_current_np = h_current.squeeze(1).detach().numpy()
+                h_current_np = h_current.squeeze(1).detach().cpu().numpy()
 
                 for i in range(self.num_layers):
                     h_new[i, :] = self.ekf.step(
@@ -263,8 +288,23 @@ class MPC(ABC):
             else:
 
                 h_current = h_current.detach()
-            
-        return u_history, x_history, v_history, a_history
+        
+        histories = {
+            "simulink": {
+                "h": h_hist_simulink,
+                "x": x_hist_simulink,
+                "v": v_hist_simulink,
+                "a": a_hist_simulink
+            },
+            "nn": {
+                "h": h_hist_nn,
+                "x": x_hist_nn,
+                "v": v_hist_nn,
+                "a": a_hist_nn
+            }
+        }
+
+        return u_history, histories
 
 
     @abstractmethod
@@ -302,7 +342,7 @@ class MPC(ABC):
         xk: float,
         vk: float,
         verbose: bool = False
-    ) -> Tuple[float, torch.Tensor, float, float, float]:
+    ) -> Tuple[float,dict]:
         """
         Optimize control for one MPC step.
         
@@ -320,7 +360,7 @@ class MPC(ABC):
         # Detach inputs
         hk = hk.detach()
         x_ref = x_ref.detach()
-
+        
         horizon = x_ref.shape[0]
         
         # Initialize control sequence
@@ -335,11 +375,13 @@ class MPC(ABC):
             verbose=verbose
         )
         
-        h_new, x_new, v_new, a_new = self.update_states(
+        
+
+        state_update_dict = self.update_states(
                 u=u_optimal,
                 xk=xk,
                 vk=vk,
                 hk=hk
             )
 
-        return u_optimal, h_new, x_new, v_new, a_new
+        return u_optimal, state_update_dict

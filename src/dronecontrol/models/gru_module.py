@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Tuple
 import torch
 from torch import nn
 
@@ -52,8 +52,10 @@ class GRU(BaseModel):
         self.regressor = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
-        
+        # Ensure hidden (if provided) is on the same device as x
         if hidden is not None:
+            if hidden.device != x.device:
+                hidden = hidden.to(x.device)
             out, h = self.gru(x, hidden)
         else:
             out, h = self.gru(x)
