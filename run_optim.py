@@ -49,13 +49,13 @@ def main():
         dt=dt,
         Q=np.eye(horizon) * 10,  # Control effort weight
         R=np.eye(horizon) * 1.0,  # Tracking error weight
+        S=np.eye(horizon) * 0.1,  # Terminal state weight
+        tau=0.5,                   # Speed overshoot weight
         lr=0.5,
         max_epochs=100,
         horizon=horizon,
-        nb_steps=nb_steps,
         use_ekf=True,  # Set to True to use EKF
         use_simulink=True,
-        optimizer_type="adam",
     )
 
     
