@@ -24,7 +24,7 @@ class ScenarioConfig:
     tracking_weight: float = 10.0
     lr: float = 0.1
     max_epochs: int = 100
-    checkpoint_path: Path = Path("models/gru-nobatchnorm-val_loss=0.03.ckpt")
+    checkpoint_path: Path = Path("models\\accel_vs_voltage\\gru\\gru-nobatchnorm-val_loss=0.03.ckpt")
     report_dir: Path = Path("predictions_plots")
     optimize_trajectory: bool = True
     max_speed: Optional[float] = 5
