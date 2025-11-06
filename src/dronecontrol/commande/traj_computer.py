@@ -7,7 +7,7 @@ class TrajectoryOptimizer:
     def __init__(
             self,
             dt: float,
-            max_speed: float,
+            max_accel: float,
             x_ref: torch.Tensor,
             x0: float,
             smoothing: bool = True,
@@ -15,7 +15,7 @@ class TrajectoryOptimizer:
             stable_time: float = 7,
             ):
         self.dt = dt
-        self.max_speed = max_speed
+        self.max_accel = max_accel
         self.x_ref = x_ref
         self.x0 = x0
         self.smoothing = smoothing
@@ -24,7 +24,7 @@ class TrajectoryOptimizer:
 
     def _get_nb_steps(self, x, x0) -> int:
         """Compute number of steps from horizon and dt."""
-        return int(abs(x - x0) / (self.max_speed * self.dt)) + 1
+        return int(abs(x - x0) / (self.max_accel * self.dt)) + 1
 
     @staticmethod
     def exponential_moving_average(x: torch.Tensor, alpha: float) -> torch.Tensor:
