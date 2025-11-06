@@ -17,12 +17,12 @@ def main():
     
     # Configuration
     seed = 42
-    epochs = 50
+    epochs = 100
     batch_size = 32
     lr = 1e-2
     val_split = 0.2
     test_split = 0.1
-    hidden_dim = 8
+    hidden_dim = 32
     num_layers = 2
     dropout = 0.0
     log_dir = "logs"

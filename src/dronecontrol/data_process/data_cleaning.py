@@ -44,7 +44,7 @@ class AVDataCleaner(DataCleaner):
 		mean_ratio = np.nanmean(ratio)
 		std_ratio = np.nanstd(ratio)
 
-		sigma = 1.98 # Corresponds to 95% confidence interval
+		sigma = 1/4 # Corresponds to 95% confidence interval
 
 		mask = abs(ratio - mean_ratio) <=  sigma * std_ratio
 
