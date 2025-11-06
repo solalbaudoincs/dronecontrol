@@ -69,6 +69,8 @@ class MPCTorch(MPC):
         
         self.lr = lr
         self.max_epochs = max_epochs
+        self.early_stop_tol = 1e-5
+        self.early_stop_patience = 10
         # Store scalar weights for loss computation
         self.Q = torch.tensor(Q, dtype=torch.float32, device="cuda" if torch.cuda.is_available() else "cpu")
         self.R = torch.tensor(R, dtype=torch.float32, device="cuda" if torch.cuda.is_available() else "cpu")
@@ -86,7 +88,7 @@ class MPCTorch(MPC):
         hk: torch.Tensor,
         xk: float,
         vk: float,
-        verbose: bool = False
+        verbose: bool = False,
     ) -> float:
         """
         Optimize control sequence over the horizon using PyTorch Adam optimizer.
@@ -109,9 +111,12 @@ class MPCTorch(MPC):
         hk = hk.to(device)
         # Initialize control sequence on device
         u = torch.zeros(1, horizon, 1, requires_grad=True, device=device)
-
         
         optimizer = torch.optim.Adam([u], lr=self.lr)
+        
+        # Early stopping variables
+        best_loss = float('inf')
+        patience_counter = 0
         
         # Optimization loop
         for epoch in range(self.max_epochs):
@@ -152,16 +157,17 @@ class MPCTorch(MPC):
             with torch.no_grad():
                 u.data = self.project_control(u.data)
             
+            # Early stopping check
+            if loss.item() < best_loss - self.early_stop_tol:
+                best_loss = loss.item()
+                patience_counter = 0
+            else:
+                patience_counter += 1
             
-            # # Log first epoch, last epoch, or every 10 epochs if verbose
-            # should_log = (epoch == 0 or epoch == self.max_epochs - 1 or 
-            #                 (verbose and (epoch + 1) % 10 == 0))
-            
-            # if should_log:
-            #     print(f"    Epoch {epoch+1:3d}/{self.max_epochs}: "
-            #             f"loss={loss.item():8.4f} "
-            #             f"(tracking={tracking_loss.item():7.3f}, "
-            #             f"control={control_loss.item():7.3f})")
+            if patience_counter >= self.early_stop_patience:
+                if verbose:
+                    print(f"    Early stopping at epoch {epoch+1}/{self.max_epochs}")
+                break
         
         # Extract optimal control
         u_optimal = u.detach()[0, 0, 0].item()
