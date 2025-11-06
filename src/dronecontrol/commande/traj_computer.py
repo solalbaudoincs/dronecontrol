@@ -12,6 +12,7 @@ class TrajectoryOptimizer:
             x0: float,
             smoothing: bool = True,
             alpha: float = 0.3,
+            stable_time: float = 7,
             ):
         self.dt = dt
         self.max_speed = max_speed
@@ -19,6 +20,7 @@ class TrajectoryOptimizer:
         self.x0 = x0
         self.smoothing = smoothing
         self.alpha = alpha
+        self.nb_stable_steps = int(stable_time / dt)
 
     def _get_nb_steps(self, x, x0) -> int:
         """Compute number of steps from horizon and dt."""
@@ -47,7 +49,8 @@ class TrajectoryOptimizer:
             x_target = self.x_ref[i].item()
             nb_steps = self._get_nb_steps(x_target, current_pos) * 3
             # Create trajectory segment from current position to target
-            segment = torch.ones((nb_steps), dtype=torch.float32)
+            segment = torch.ones((nb_steps + self.nb_stable_steps), dtype=torch.float32)
+
             segment[0] = current_pos
             segment[1:] *= x_target
 
@@ -56,7 +59,6 @@ class TrajectoryOptimizer:
                 trajectories.append(smoothed_segment)
             else:
                 trajectories.append(segment)
-
             steps.append(segment)
             # Update current position for next segment
             current_pos = x_target

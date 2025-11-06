@@ -69,10 +69,7 @@ class MPC(ABC):
         else:
             self.ekf = None
 
-        if use_simulink and DroneSimulator is not None:
-            self.simulator = DroneSimulator()
-        else:
-            self.simulator = None
+        self.simulator = DroneSimulator()
 
         self.max_speed = max_speed
         self.optimize_trajectory = optimize_trajectory
@@ -110,11 +107,14 @@ class MPC(ABC):
         x = torch.zeros(horizon, device=device)
         v = torch.zeros(horizon, device=device)
 
+
         x[0] = xk
         v[0] = vk
 
         v[1:] = vk + torch.cumsum(a[:-1] * self.dt, dim=0)
         x[1:] = xk + torch.cumsum(v[:-1] * self.dt + 0.5 * a[:-1] * self.dt**2, dim=0)
+
+        print(f"x horizon for the nn x[1:]: {x[1:]}")
 
         return x, v, a
 
