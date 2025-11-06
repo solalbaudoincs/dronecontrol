@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List, Union, Tuple
+from typing import List, Optional, Union, Tuple, Dict
 import torch
 import numpy as np
 
 from dronecontrol.models.base_module import BaseModel
 from .neural_ekf import NeuralEKF
+from .traj_computer import TrajectoryOptimizer
 
 from dronecontrol.simulink.simulator import DroneSimulator
 
@@ -18,13 +19,14 @@ class MPC(ABC):
         accel_model: BaseModel,
         dt: float,
         horizon: int,
-        nb_steps: int,
         Q: ArrayLike,
         R: ArrayLike,
         u_min: float,
         u_max: float,
         use_ekf: bool = False,
-        use_simulink: bool = False
+        use_simulink: bool = False,
+        optimize_trajectory: bool = False,
+        max_speed: Optional[float] = None
     ):
         """
         Initialize MPC controller.
@@ -45,7 +47,6 @@ class MPC(ABC):
         self.accel_model = accel_model
         self.dt = dt
         self.horizon = horizon
-        self.nb_steps = nb_steps
         self.Q = torch.tensor(Q)
         self.R = torch.tensor(R)
         self.u_min = u_min
@@ -70,6 +71,9 @@ class MPC(ABC):
             self.simulator = DroneSimulator()
         else:
             self.simulator = None
+
+        self.max_speed = max_speed
+        self.optimize_trajectory = optimize_trajectory
 
     def _compute_trajectory_wrt_NN(
         self,
@@ -174,7 +178,7 @@ class MPC(ABC):
         hk: torch.Tensor,
         xk: float,
         vk: float,
-    ) -> tuple[torch.Tensor, float, float, float]:
+    ) -> Dict[str, Tuple[torch.Tensor, float, float, float]]:
         """
         Compute predicted trajectory given control sequence.
 
@@ -192,11 +196,11 @@ class MPC(ABC):
         return {
             "simulink": self._update_states_simulink(u, hk),
             "nn": self._update_states_NN(u, hk, xk, vk)
-        } #type: ignore
+        } 
     
     def solve(
         self,
-        x_ref: ArrayLike,
+        x_ref: torch.Tensor,
         x0: float,
         v0: float,
         a0: float = 0.0,
@@ -220,16 +224,36 @@ class MPC(ABC):
         """
         
         # Initialize
-        u_history = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        h_hist_simulink = torch.zeros((self.nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
-        x_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        v_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        a_hist_simulink = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
 
-        h_hist_nn = torch.zeros((self.nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
-        x_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)    
-        v_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
-        a_hist_nn = torch.zeros(self.nb_steps, dtype=torch.float32, requires_grad=False)
+        if self.optimize_trajectory :
+            if self.max_speed is None:
+                raise ValueError("max_speed must be provided to optimize trajectory.")
+            
+            with torch.no_grad():
+                
+                traj_computer = TrajectoryOptimizer(
+                    dt=self.dt,
+                    max_speed=self.max_speed,
+                    x_ref=x_ref,
+                    x0=x0
+                )
+                
+                x_ref = traj_computer.optimize_trajectory()
+
+        nb_steps = x_ref.shape[0]
+
+
+        x_current = x0
+        u_history = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
+        h_hist_simulink = torch.zeros((nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
+        x_hist_simulink = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
+        v_hist_simulink = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
+        a_hist_simulink = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
+
+        h_hist_nn = torch.zeros((nb_steps, self.num_layers, self.hidden_dim), dtype=torch.float32, requires_grad=False)
+        x_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)    
+        v_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
+        a_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
         x_ref = torch.tensor(x_ref, dtype=torch.float32, requires_grad=False)
         
         v_current = v0
@@ -242,7 +266,7 @@ class MPC(ABC):
         h_current = torch.zeros(self.num_layers, 1, self.hidden_dim)
 
 
-        for step in range(self.nb_steps):
+        for step in range(nb_steps):
 
             u_opt, state_update_dict = self.step(
                 x_ref=x_ref[step:step + self.horizon],
@@ -263,7 +287,7 @@ class MPC(ABC):
             
             if verbose:
                 if step % 5 == 0:  # Print every 5 steps
-                    print(f"Step {step:3d}/{self.nb_steps} | "
+                    print(f"Step {step:3d}/{nb_steps} | "
                           f"x={x_current:7.3f} (ref={x_ref[step]:7.3f}) | "
                           f"v={v_current:7.3f} | "
                           f"a={a_current:7.3f} | "
