@@ -11,7 +11,7 @@ class TrajectoryOptimizer:
             x_ref: torch.Tensor,
             x0: float,
             smoothing: bool = True,
-            alpha: float = 0.3,
+            alpha: float = 0.1,
             stable_time: float = 7,
             ):
         self.dt = dt

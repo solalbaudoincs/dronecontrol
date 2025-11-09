@@ -27,7 +27,7 @@ class MPC(ABC):
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
         max_accel: float = 9.81,
-        smoothing: bool = True,
+        smoothing: bool = False,
         smoothing_alpha: float = 0.3,
     ):
         """
@@ -231,7 +231,6 @@ class MPC(ABC):
         x_ref_step = x_ref
 
         with torch.no_grad():
-            
             traj_computer = TrajectoryOptimizer(
                 dt=self.dt,
                 max_accel=self.max_accel,
@@ -255,7 +254,7 @@ class MPC(ABC):
         x_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)    
         v_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
         a_hist_nn = torch.zeros(nb_steps, dtype=torch.float32, requires_grad=False)
-        x_ref = torch.tensor(x_ref, dtype=torch.float32, requires_grad=False)
+
         
         v_current = v0
         a_current = a0
