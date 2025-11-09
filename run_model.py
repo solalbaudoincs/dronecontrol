@@ -111,7 +111,7 @@ def main():
     )
     
     # Train
-    trainer.fit(model, data_module)
+    #trainer.fit(model, data_module)
     trainer.test(model, data_module)
     
     print("\n" + "=" * 60)

@@ -110,7 +110,8 @@ class MPCTorch(MPC):
         x_ref = x_ref.to(device)
         hk = hk.to(device)
         # Initialize control sequence on device
-        u = torch.zeros(horizon, 1, requires_grad=True, device=device)
+        u_stable = 0.386  # Stable hover control
+        u = torch.full((horizon, 1), u_stable, requires_grad=True, device=device)
         
         optimizer = torch.optim.Adam([u], lr=self.lr)
         
