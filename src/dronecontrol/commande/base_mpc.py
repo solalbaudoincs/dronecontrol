@@ -93,8 +93,6 @@ class MPC(ABC):
         """
         # Ensure inputs are on the model's device
         device = next(self.accel_model.parameters()).device
-        u = u
-        hk = hk
 
         # Predict accelerations
         with torch.set_grad_enabled(u.requires_grad):
