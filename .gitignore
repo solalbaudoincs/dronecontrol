@@ -230,3 +230,7 @@ logs
 reports
 
 *.prof
+
+!gru-best.ckpt
+!lstm-best.ckpt
+!rnn-best.ckpt

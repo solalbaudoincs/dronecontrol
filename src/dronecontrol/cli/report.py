@@ -4,7 +4,8 @@ import torch
 import numpy as np
 
 from dronecontrol.globals import BASEDIR
-from dronecontrol.models.gru_module import GRU
+from dronecontrol.models.base_module import BaseModel
+from dronecontrol.models import MODEL_REGISTRY
 from dronecontrol.commande.MPC_torch import MPCTorch
 
 
@@ -17,14 +18,15 @@ PREDEFINED_TRAJECTORIES = {
 }
 
 
-def _load_model(checkpoint_path: Path, device: torch.device) -> GRU:
+def _load_model(model_name: str, checkpoint_path: Path, device: torch.device) -> BaseModel:
     """Load GRU model from checkpoint."""
-    model = GRU.load_from_checkpoint(checkpoint_path)
+
+    model = (MODEL_REGISTRY[model_name]).load_from_checkpoint(checkpoint_path)
     model.to(device)
     return model
 
 
-def _build_mpc(model: GRU, dt: float, horizon: int, lr: float, max_epochs: int,
+def _build_mpc(model: BaseModel, dt: float, horizon: int, lr: float, max_epochs: int,
                use_ekf: bool, use_simulink: bool, optimize_trajectory: bool,
                max_accel: float, control_weight: float, tracking_weight: float) -> MPCTorch:
     """Build MPC controller with specified configuration."""
@@ -212,7 +214,7 @@ def run_report(
 
     # Load model
     print("Loading model...")
-    model = _load_model(checkpoint_path, device)
+    model = _load_model(model_name, checkpoint_path, device)
 
     # Build MPC controller
     print("Building MPC controller...")

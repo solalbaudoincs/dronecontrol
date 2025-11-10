@@ -48,10 +48,10 @@ class LSTM(BaseModel):
         # x: [batch, seq_len, input_dim]
 
         if hidden is not None:
+            if hidden.device != x.device:
+                hidden = hidden.to(x.device)
             out, h = self.lstm(x, hidden)
         else:
             out, h = self.lstm(x)
-
         out = self.regressor(out)
-
         return out, h
