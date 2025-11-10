@@ -24,8 +24,8 @@ class MPCTorch(MPC):
         tau: float,                 # Speed overshoot weight
         lr: float = 0.01,
         max_epochs: int = 50,
-        u_min: float = -1.0,
-        u_max: float = 1.0,
+        u_min: float = -5.0,
+        u_max: float = 5.0,
         use_ekf: bool = False,
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
