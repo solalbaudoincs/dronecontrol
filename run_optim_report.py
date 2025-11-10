@@ -166,7 +166,7 @@ def main() -> None:
     x0 = 0.0
     v0 = 0.0
 
-    x_ref = torch.tensor([0.5, -0.25, 0], dtype=torch.float32)
+    x_ref = torch.tensor([0.5, -0.25, 0], dtype=torch.float32, device=device)
 
     print("Running MPC optimization...")
     u_hist, histories = controller.solve(
