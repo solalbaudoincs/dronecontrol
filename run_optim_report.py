@@ -27,7 +27,7 @@ class ScenarioConfig:
     max_epochs: int = 100
     checkpoint_path: Path = Path("models\\gru-epoch=62-val_loss=0.0022.ckpt")
     report_dir: Path = Path("predictions_plots")
-    tau: float = 0.2
+    tau: float = 0.3
     smoothing: bool = True
 
 
@@ -166,7 +166,7 @@ def main() -> None:
     x0 = 0.0
     v0 = 0.0
 
-    x_ref = torch.rand(5, dtype=torch.float32, requires_grad=False) * 10
+    x_ref = torch.tensor([0.5, -0.25, 0], dtype=torch.float32)
 
     print("Running MPC optimization...")
     u_hist, histories = controller.solve(
