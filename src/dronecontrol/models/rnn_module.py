@@ -52,8 +52,10 @@ class RNN(BaseModel):
             nn.Linear(hidden_dim, output_dim),
         )
 
-    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def forward(self, x: torch.Tensor, hidden: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         if hidden is not None:
+            if hidden.device != x.device:
+                hidden = hidden.to(x.device)
             out, h = self.rnn(x, hidden)
         else:
             out, h = self.rnn(x)

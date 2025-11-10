@@ -10,9 +10,9 @@ from dronecontrol.data_process.data_loader import AVDataLoader
 
 
 DEFAULTS = {
-    "gru": dict(epochs=20, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=2, dropout=0.0),
-    "lstm": dict(epochs=20, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=1, dropout=0.0),
-    "rnn": dict(epochs=20, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=2, dropout=0.0),
+    "gru": dict(epochs=100, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=2, dropout=0.0),
+    "lstm": dict(epochs=100, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=2, dropout=0.0),
+    "rnn": dict(epochs=100, batch_size=32, lr=1e-2, hidden_dim=32, num_layers=2, dropout=0.0),
 }
 
 
@@ -24,7 +24,7 @@ def _get_model_class(model_name: str):
     elif model_name == "lstm":
         from dronecontrol.models.lstm import LSTM as ModelClass
     elif model_name == "rnn":
-        from dronecontrol.models.rnn import model_nn as ModelClass
+        from dronecontrol.models.rnn_module import RNN as ModelClass
     else:
         raise ValueError(f"Unknown model_name: {model_name}. Choose from: gru, lstm, rnn")
     return ModelClass
