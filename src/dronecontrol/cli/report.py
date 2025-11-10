@@ -13,7 +13,7 @@ from dronecontrol.commande.MPC_torch import MPCTorch
 PREDEFINED_TRAJECTORIES = {
     "default": torch.tensor([0.5, -0.25, 0], dtype=torch.float32),
     "5-step": torch.rand(5, dtype=torch.float32)*10,
-    "10-step": torch.tensor(10, dtype=torch.float32)*10,
+    "10-step": torch.rand(10, dtype=torch.float32)*10,
 }
 
 
