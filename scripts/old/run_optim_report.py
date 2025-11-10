@@ -25,7 +25,7 @@ class ScenarioConfig:
     tracking_weight: float = 10.0
     lr: float = 0.1
     max_epochs: int = 100
-    checkpoint_path: Path = Path("models/accel_vs_voltage/gru/epoch=103-val_loss=0.0025.ckpt")
+    checkpoint_path: Path = Path("models/gru-epoch=62-val_loss=0.0022.ckpt")
     report_dir: Path = Path("predictions_plots")
     tau: float = 0.3
     smoothing: bool = True
@@ -39,10 +39,10 @@ def load_model(cfg: ScenarioConfig, device: torch.device) -> GRU:
 
 def build_mpc(model: GRU, cfg: ScenarioConfig) -> MPCTorch:
     # Create decaying weights: current control is more important than future
-    decay_weights = np.exp(-np.arange(cfg.horizon, dtype=np.float32) * 0.1)
+    decay_weights = np.ones(cfg.horizon, dtype=np.float32)
     Q = np.diag(decay_weights * cfg.control_weight)
     R = np.diag(decay_weights * cfg.tracking_weight)
-    S = np.eye(cfg.horizon, dtype=np.float32) * (cfg.tracking_weight * 0.1)
+    S = np.eye(cfg.horizon, dtype=np.float32) * (cfg.tracking_weight * 0.0)
     
     return MPCTorch(
         accel_model=model,

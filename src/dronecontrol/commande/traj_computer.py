@@ -12,8 +12,9 @@ class TrajectoryOptimizer:
             x0: float,
             smoothing: bool = True,
             alpha: float = 0.1,
-            stable_time: float = 7,
+            stable_time: float = 4,
             ):
+        
         self.dt = dt
         self.max_accel = max_accel
         self.x_ref = x_ref
@@ -40,7 +41,6 @@ class TrajectoryOptimizer:
         Optimize trajectory through all reference points in x_ref.
         Creates a trajectory from x0 -> x_ref[0] -> x_ref[1] -> ... -> x_ref[-1]
         """
-        trajectories = []
         steps = []
         current_pos = self.x0
         
@@ -49,22 +49,20 @@ class TrajectoryOptimizer:
             x_target = self.x_ref[i].item()
             nb_steps = self._get_nb_steps(x_target, current_pos) * 3
             # Create trajectory segment from current position to target
-            segment = torch.ones((nb_steps + self.nb_stable_steps), dtype=torch.float32)
+            segment = torch.ones((nb_steps + self.nb_stable_steps), dtype=torch.float32)*x_target
 
-            segment[0] = current_pos
-            segment[1:] *= x_target
-
-            if self.smoothing:
-                smoothed_segment = self.exponential_moving_average(segment, alpha=self.alpha)
-                trajectories.append(smoothed_segment)
-            else:
-                trajectories.append(segment)
             steps.append(segment)
             # Update current position for next segment
             current_pos = x_target
         
-        # Concatenate all trajectory segments
-        full_trajectory = torch.cat(trajectories)
+        if self.smoothing:
+            # Concatenate all trajectory segments
+            full_trajectory = torch.cat(steps)
+            # Apply exponential moving average for smoothing
+            full_trajectory = self.exponential_moving_average(full_trajectory, self.alpha)
+        else :
+            full_trajectory = torch.cat(steps)
+
         x_ref_step = torch.cat(steps)
 
         return full_trajectory, x_ref_step

@@ -78,7 +78,7 @@ uv run scripts/cli.py run \
 # Full generation with all parameters
 uv run scripts/cli.py run \
     --model-name gru \
-    --trajectory smooth \
+    --trajectory 5-step \
     --use-ekf true \
     --use-simulink true \
     --optimize-trajectory true \
@@ -111,7 +111,7 @@ uv run scripts/cli.py train --model-name gru --epochs 50
 # 2. Generate optimization report with smooth trajectory
 uv run scripts/cli.py run \
     --model-name gru \
-    --trajectory smooth \
+    --trajectory 10-step \
     --max-epochs 150
 ```
 

@@ -11,10 +11,9 @@ from dronecontrol.commande.MPC_torch import MPCTorch
 
 # Predefined trajectory presets
 PREDEFINED_TRAJECTORIES = {
-    "default": torch.tensor([8, -6, 0], dtype=torch.float32),
-    "step": torch.tensor([5, 0], dtype=torch.float32),
-    "multi": torch.tensor([1, 3, -2, 0], dtype=torch.float32),
-    "smooth": torch.tensor([2, 4, 3, 1], dtype=torch.float32),
+    "default": torch.tensor([0.5, -0.25, 0], dtype=torch.float32),
+    "5-step": torch.rand(5, dtype=torch.float32)*10,
+    "10-step": torch.tensor(10, dtype=torch.float32)*10,
 }
 
 
@@ -31,10 +30,9 @@ def _build_mpc(model: BaseModel, dt: float, horizon: int, lr: float, max_epochs:
                max_accel: float, control_weight: float, tracking_weight: float) -> MPCTorch:
     """Build MPC controller with specified configuration."""
     # Create decaying weights
-    decay_weights = np.exp(-np.arange(horizon, dtype=np.float32) * 0.1)
-    Q = np.diag(decay_weights * control_weight)
+    Q = np.eye(horizon, dtype=np.float32) * control_weight
     R = np.eye(horizon, dtype=np.float32) * tracking_weight
-    S = np.eye(horizon, dtype=np.float32) * (tracking_weight * 0.0)
+    S = np.eye(horizon, dtype=np.float32) * 0.0
     
     return MPCTorch(
         accel_model=model,
@@ -43,7 +41,7 @@ def _build_mpc(model: BaseModel, dt: float, horizon: int, lr: float, max_epochs:
         Q=Q,
         R=R,
         S=S,
-        tau=0.5,
+        tau=0.3,
         lr=lr,
         max_epochs=max_epochs,
         use_ekf=use_ekf,
@@ -139,9 +137,9 @@ def run_report(
     max_epochs: int = 100,
     trajectory: str = "default",
     dt: float = 0.05,
-    horizon: int = 30,
+    horizon: int = 15,
     lr: float = 0.1,
-    max_accel: float = 5.0,
+    max_accel: float = 9.81,
     control_weight: float = 1.0,
     tracking_weight: float = 10.0,
 ):
@@ -234,7 +232,7 @@ def run_report(
 
     # Run optimization
     print("Running MPC optimization...")
-    x0 = 1.0
+    x0 = 0.0
     v0 = 0.0
 
     u_hist, histories = controller.solve(
