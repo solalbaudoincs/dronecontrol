@@ -32,7 +32,7 @@ def _build_mpc(model: BaseModel, dt: float, horizon: int, lr: float, max_epochs:
     # Create decaying weights
     Q = np.eye(horizon, dtype=np.float32) * control_weight
     R = np.eye(horizon, dtype=np.float32) * tracking_weight
-    S = np.eye(horizon, dtype=np.float32) * 0.0
+    S = np.eye(horizon, dtype=np.float32) * tracking_weight
     
     return MPCTorch(
         accel_model=model,
