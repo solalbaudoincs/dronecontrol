@@ -104,13 +104,13 @@ def main():
     p_run.add_argument(
         "--trajectory",
         required=True,
-        choices=["default", "step", "multi", "smooth"],
+        choices=["default", "5-step", "10-step"],
         help="Predefined trajectory to use"
     )
     
     # Optional MPC parameters
     p_run.add_argument("--dt", type=float, default=0.05, help="Time step")
-    p_run.add_argument("--horizon", type=int, default=30, help="MPC horizon")
+    p_run.add_argument("--horizon", type=int, default=15, help="MPC horizon")
     p_run.add_argument("--lr", type=float, default=0.1, help="Optimizer learning rate")
     p_run.add_argument("--max-speed", type=float, default=9.81, help="Maximum speed")
 

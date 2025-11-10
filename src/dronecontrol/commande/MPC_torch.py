@@ -24,8 +24,8 @@ class MPCTorch(MPC):
         tau: float,                 # Speed overshoot weight
         lr: float = 0.01,
         max_epochs: int = 50,
-        u_min: float = -5.0,
-        u_max: float = 5.0,
+        u_min: float = -1.0,
+        u_max: float = 1.0,
         use_ekf: bool = False,
         use_simulink: bool = False,
         optimize_trajectory: bool = False,
@@ -143,7 +143,7 @@ class MPCTorch(MPC):
             # speed_tracking_loss = torch.dot(lag.view(-1), S @ lag.view(-1))
 
             # ||u||_Q^2 = u^T Q u
-            u_flat = u.squeeze(-1) # [horizon]
+            u_flat = u.squeeze(-1) - u_stable # [horizon]
             Q = self.Q[:horizon, :horizon]
             control_loss = torch.dot(u_flat, Q @ u_flat)
 
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         dt=0.1,
         horizon=10,
         nb_steps=50,
-        Q_weight=0.1,
+        Q_weight=1.0,
         R_weight=10.0,
         lr=0.01,
         max_epochs=50,
