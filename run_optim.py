@@ -38,7 +38,7 @@ def main():
     
     # Note: In practice, load checkpoint like:
     # checkpoint_path = "path/to/gru-checkpoint.ckpt"
-    gru_model = GRU.load_from_checkpoint(r"models/accel_vs_voltage/gru/epoch=120-val_loss=0.0313.ckpt")
+    gru_model = GRU.load_from_checkpoint(r"models\gru-epoch=62-val_loss=0.0022.ckpt")
     gru_model.to(device)
     
     # Set model to evaluation mode

@@ -2,6 +2,7 @@ data/
 logs/
 models_checkpoints/
 predictions_plots/
+optimization_results/
 
 
 
