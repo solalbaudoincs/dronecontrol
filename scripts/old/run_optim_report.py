@@ -25,7 +25,7 @@ class ScenarioConfig:
     tracking_weight: float = 10.0
     lr: float = 0.1
     max_epochs: int = 100
-    checkpoint_path: Path = Path("models\\gru-epoch=62-val_loss=0.0022.ckpt")
+    checkpoint_path: Path = Path("models/accel_vs_voltage/gru/epoch=103-val_loss=0.0025.ckpt")
     report_dir: Path = Path("predictions_plots")
     tau: float = 0.3
     smoothing: bool = True

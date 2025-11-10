@@ -99,7 +99,8 @@ class NeuralEKF:
             h_last = hk.to(self.device)
         
         self.h = h_last
-        
+        u = u.to(self.device)
+        hk = hk.to(self.device)
         # ===== PREDICT STEP =====
         # For multi-layer, we need to compute jacobian w.r.t last layer only
         F = self.compute_F(u, hk)  # Jacobian of last layer
