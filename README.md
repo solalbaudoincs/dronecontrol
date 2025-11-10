@@ -89,7 +89,7 @@ uv run scripts/cli.py run \
 
 **Available options:**
 - `--model-name`: Model name - **required**
-- `--trajectory`: Trajectory type (`default`, `step`, `multi`, `smooth`) - **required**
+- `--trajectory`: Trajectory type (`default`, `step`, `multi`, `smooth`) - **required** (look [here](https://github.com/solalbaudoincs/dronecontrol/blob/ce99bd4e19a834318ad5539e1d2d19964c3c1114/src/dronecontrol/cli/report.py#L13-L18) for values)
 - `--model-ckpt`: Checkpoint path (default: `{model_name}_best.ckpt`)
 - `--use-ekf`: Use Extended Kalman Filter (`true`/`false`, default: `true`)
 - `--use-simulink`: Use Simulink for simulation (`true`/`false`, default: `true`)
